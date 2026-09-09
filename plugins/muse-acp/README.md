@@ -10,16 +10,18 @@ download binaries.
 
 ## Status
 
-Scaffold. The provider registration is not written yet, and two decisions block
-it:
+Working registration; not yet released. Installing it should replace the
+`customAgents` entry for Muse in bb's `provider-acp` settings — both claim the
+provider id `acp-muse-code`.
 
-1. **Icon.** No Muse SVG exists on disk. The manifest currently names a
-   built-in glyph as a placeholder. Note that Muse Code is a Meta product: the
-   mark can be used for identification, with the disclaimer other bb plugins
-   carry in `THIRD_PARTY_NOTICES.md`, but it stays Meta's trademark.
-2. **Provider id.** Permanent once published. `acp-muse-code` is the natural
-   slug and collides with an existing local `customAgents` entry, which should
-   be removed at the same time the plugin lands.
+What registering here fixes, versus that `customAgents` entry:
+
+| | `customAgents` | this plugin |
+| --- | --- | --- |
+| Icon | `Toolbox` generic glyph | Meta mark, tinted |
+| Reasoning levels | `low…max` — invents `max`, drops `none`/`ultra` | the six Muse levels bb can express |
+| Service tiers | `default`/`fast` — Muse has neither | none |
+| Sign-in hint | generic | points at the `muse` CLI, which is where Muse actually authenticates |
 
 ## What the adapter advertises
 

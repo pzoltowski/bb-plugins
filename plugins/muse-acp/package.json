@@ -11,15 +11,21 @@
     "name": "Muse Code (ACP)",
     "description": "Run bb threads on Muse Code through the muse-acp adapter.",
     "branding": {
-      "icon": "Cpu"
+      "icon": "./icons/muse-code.svg"
     },
-    "server": "./server.ts"
+    "server": "./server.ts",
+    "host": "./host.ts"
   },
   "dependencies": {
-    "@get-bb/plugin-sdk": "0.4.47"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@get-bb/plugin-sdk": "0.4.47",
     "@types/node": "^22.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/react": "^19.0.0",
+    "better-sqlite3": "^12.0.0",
+    "hono": "^4.11.9"
   }
 }
