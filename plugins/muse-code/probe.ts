@@ -42,7 +42,7 @@ export async function probeLocal(command = "muse-acp"): Promise<Probe> {
 
   base.binaryPath = command.includes("/") || command.includes("\\") ? command : await which(command);
   if (base.binaryPath === null) {
-    return { ...base, error: `\`${command}\` is not installed. Run \`bb muse-acp install\`.` };
+    return { ...base, error: `\`${command}\` is not installed. Run \`bb muse-code install\`.` };
   }
 
   try {

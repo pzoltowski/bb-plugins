@@ -4,7 +4,7 @@ BB plugins by Patryk Zoltowski.
 
 | Plugin | Status | What it does |
 | --- | --- | --- |
-| [muse-acp](plugins/muse-acp) | scaffold | Registers Muse Code as a bb agent provider through the `muse-acp` adapter. |
+| [muse-acp](plugins/muse-code) | scaffold | Registers Muse Code as a bb agent provider through the `muse-acp` adapter. |
 
 ## Layout
 
@@ -13,14 +13,14 @@ own `<plugin>/vX.Y.Z` tag. bb installs a single plugin straight out of the
 subdirectory:
 
 ```sh
-bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-acp/:^0.1.0
+bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-code/:^0.1.0
 ```
 
 Local development installs the path instead:
 
 ```sh
 npm install
-bb plugin install ./plugins/muse-acp
+bb plugin install ./plugins/muse-code
 ```
 
 ## Related repositories

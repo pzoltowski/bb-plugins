@@ -4,8 +4,8 @@
   "name": "pzoltowski-bb-plugins",
   "plugins": [
     {
-      "name": "muse-acp",
-      "source": "./plugins/muse-acp"
+      "name": "muse-code",
+      "source": "./plugins/muse-code"
     }
   ]
 }

@@ -1,4 +1,4 @@
-// bb-plugin-muse-acp — Muse Code as a first-class bb agent provider, through
+// bb-plugin-muse-code — Muse Code as a first-class bb agent provider, through
 // the muse-acp adapter (https://github.com/BrokkAi/muse-acp).
 //
 // Configuring Muse as a `customAgents` entry instead gets you bb's generic
@@ -6,7 +6,7 @@
 // that include `max` (Muse has no such level) and omit `none`/`ultra` (it has
 // both), plus service tiers Muse does not implement. Registering the provider
 // here replaces all of that with what the adapter actually advertises, and
-// adds `bb muse-acp install` so nobody has to go find the binary first.
+// adds `bb muse-code install` so nobody has to go find the binary first.
 //
 // Capability facts read from muse-acp v0.2.5, src/main.rs (V1_INIT/V2_INIT)
 // and src/acp.rs (config_options):
@@ -36,7 +36,7 @@ export default async function plugin(bb: BbPluginApi) {
       type: "string",
       label: "Install directory",
       description:
-        "Where `bb muse-acp install` puts the adapter. `~` expands on the target machine. Matches the upstream installer's default.",
+        "Where `bb muse-code install` puts the adapter. `~` expands on the target machine. Matches the upstream installer's default.",
       default: "~/.local/bin",
     },
   });
@@ -57,7 +57,7 @@ export default async function plugin(bb: BbPluginApi) {
       iconTint: { light: "#0064E0", dark: "#0082FB" },
     },
     // Listed even where the adapter is missing, so the provider is
-    // discoverable and `bb muse-acp install` is reachable from its entry.
+    // discoverable and `bb muse-code install` is reachable from its entry.
     // Hiding it until installed leaves a new user with nothing to click.
     experimental_visibility: "always",
     // Muse resolves model/list from the signed-in account, so one probe per
@@ -91,20 +91,20 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   bb.cli.register({
-    name: "muse-acp",
+    name: "muse-code",
     summary: "Install and inspect the Muse Code ACP provider",
     commands: [
       {
         name: "status",
         summary: "Show where the adapter and the Muse Code CLI resolve on a machine",
-        usage: "bb muse-acp status [--machine <id-or-name>] [--json]",
+        usage: "bb muse-code status [--machine <id-or-name>] [--json]",
       },
       {
         name: "install",
         summary:
           "Install the adapter on a machine: downloads the upstream release for its platform, verifies the published SHA-256, and puts it in the install directory",
         usage:
-          "bb muse-acp install [--machine <id-or-name>] [--version <x.y.z>] [--install-dir <path>] [--force] [--json]",
+          "bb muse-code install [--machine <id-or-name>] [--version <x.y.z>] [--install-dir <path>] [--force] [--json]",
       },
     ],
     async run(argv, ctx) {
@@ -191,7 +191,7 @@ export default async function plugin(bb: BbPluginApi) {
       ready: probe.ok,
       hint: probe.ok
         ? "Ready."
-        : probe.error ?? "Not installed. Run `bb muse-acp install`.",
+        : probe.error ?? "Not installed. Run `bb muse-code install`.",
     };
 
     return {

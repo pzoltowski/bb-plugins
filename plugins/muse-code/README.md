@@ -7,8 +7,8 @@ provider — instead of the generic tool glyph a `customAgents` entry gets.
 ## Install
 
 ```sh
-bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-acp/:^0.1.0
-bb muse-acp install
+bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-code/:^0.1.0
+bb muse-code install
 ```
 
 The second command downloads the upstream release for the machine's platform,
@@ -23,7 +23,7 @@ Muse Code itself still needs its own CLI, which is where authentication lives:
 curl -fsSL https://api.meta.ai/muse-launcher.sh | sh   # then: muse
 ```
 
-`bb muse-acp status` reports both, so it always says which piece is missing.
+`bb muse-code status` reports both, so it always says which piece is missing.
 
 ## What this fixes versus a `customAgents` entry
 
@@ -33,7 +33,7 @@ curl -fsSL https://api.meta.ai/muse-launcher.sh | sh   # then: muse
 | Reasoning levels | `low…max` — invents `max`, drops `none`/`ultra` | the six Muse levels bb can express |
 | Service tiers | `default`/`fast` — Muse has neither | none |
 | Sign-in hint | generic | points at the `muse` CLI, where Muse actually authenticates |
-| Getting the binary | find it yourself | `bb muse-acp install` |
+| Getting the binary | find it yourself | `bb muse-code install` |
 
 ## What the adapter advertises
 
