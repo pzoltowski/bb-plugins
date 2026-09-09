@@ -7,7 +7,7 @@ provider — instead of the generic tool glyph a `customAgents` entry gets.
 ## Install
 
 ```sh
-bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-code/:^0.1.0
+bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-code/:^0.1.0 --plugin muse-code
 bb muse-code install
 ```
 

@@ -13,7 +13,7 @@ own `<plugin>/vX.Y.Z` tag. bb installs a single plugin straight out of the
 subdirectory:
 
 ```sh
-bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-code/:^0.1.0
+bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-code/:^0.1.0 --plugin muse-code
 ```
 
 Local development installs the path instead:
