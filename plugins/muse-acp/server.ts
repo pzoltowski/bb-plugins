@@ -5,7 +5,8 @@
 // `Toolbox` glyph and a set of guessed capabilities: five reasoning levels
 // that include `max` (Muse has no such level) and omit `none`/`ultra` (it has
 // both), plus service tiers Muse does not implement. Registering the provider
-// here replaces all of that with what the adapter actually advertises.
+// here replaces all of that with what the adapter actually advertises, and
+// adds `bb muse-acp install` so nobody has to go find the binary first.
 //
 // Capability facts read from muse-acp v0.2.5, src/main.rs (V1_INIT/V2_INIT)
 // and src/acp.rs (config_options):
@@ -16,6 +17,7 @@
 //   reasoning:    none | minimal | low | medium | high | xhigh | ultra
 import { type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { museHostContract } from "./contract.js";
+import { runInstall } from "./install.js";
 import { probeLocal } from "./probe.js";
 
 const PROVIDER_ID = "acp-muse-code";
@@ -27,11 +29,17 @@ export default async function plugin(bb: BbPluginApi) {
       type: "string",
       label: "muse-acp command",
       description:
-        "The adapter binary. Found on PATH by default; an absolute path also works. Install it with the muse-acp installer, not this plugin.",
+        "The adapter binary. Found on PATH by default; an absolute path also works.",
       default: "muse-acp",
     },
+    installDir: {
+      type: "string",
+      label: "Install directory",
+      description:
+        "Where `bb muse-acp install` puts the adapter. `~` expands on the target machine. Matches the upstream installer's default.",
+      default: "~/.local/bin",
+    },
   });
-  const saved = await settings.get();
 
   const host = bb.hosts.experimental_client({ contract: museHostContract });
 
@@ -48,8 +56,10 @@ export default async function plugin(bb: BbPluginApi) {
       installUrl: "https://github.com/BrokkAi/muse-acp#installation",
       iconTint: { light: "#0064E0", dark: "#0082FB" },
     },
-    // Only listed on machines where the adapter is installed and the probe passes.
-    experimental_visibility: "installed",
+    // Listed even where the adapter is missing, so the provider is
+    // discoverable and `bb muse-acp install` is reachable from its entry.
+    // Hiding it until installed leaves a new user with nothing to click.
+    experimental_visibility: "always",
     // Muse resolves model/list from the signed-in account, so one probe per
     // machine serves every workspace on it.
     models: { scope: "host" },
@@ -73,7 +83,7 @@ export default async function plugin(bb: BbPluginApi) {
     experimental_bridgeOptions: {
       acpLaunchSpec: {
         displayName: DISPLAY_NAME,
-        command: saved.command,
+        command: (await settings.get()).command,
         args: [],
         env: {} as Record<string, string>,
       },
@@ -82,31 +92,75 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.cli.register({
     name: "muse-acp",
-    summary: "Inspect the Muse Code ACP provider",
+    summary: "Install and inspect the Muse Code ACP provider",
     commands: [
       {
         name: "status",
-        summary: "Show where the muse-acp adapter resolves on a machine, and its version",
+        summary: "Show where the adapter and the Muse Code CLI resolve on a machine",
         usage: "bb muse-acp status [--machine <id-or-name>] [--json]",
+      },
+      {
+        name: "install",
+        summary:
+          "Install the adapter on a machine: downloads the upstream release for its platform, verifies the published SHA-256, and puts it in the install directory",
+        usage:
+          "bb muse-acp install [--machine <id-or-name>] [--version <x.y.z>] [--install-dir <path>] [--force] [--json]",
       },
     ],
     async run(argv, ctx) {
-      return statusCmd(argv[0] === "status" ? argv.slice(1) : argv, ctx);
+      const [command, ...rest] = argv;
+      if (command === "install") return installCmd(rest, ctx);
+      return statusCmd(command === "status" ? rest : argv, ctx);
     },
   });
+
+  async function installCmd(
+    argv: string[],
+    ctx: PluginCliContext,
+  ): Promise<{ exitCode: number; stdout: string }> {
+    const json = argv.includes("--json");
+    const current = await settings.get();
+    const installDir = flag(argv, "--install-dir") ?? current.installDir;
+    const version = flag(argv, "--version");
+    const force = argv.includes("--force");
+    const target = await resolveTarget(bb, ctx, flag(argv, "--machine"));
+
+    if (target.error !== undefined) {
+      return { exitCode: 1, stdout: json ? JSON.stringify({ ok: false, error: target.error }) : target.error };
+    }
+
+    const input = { installDir, force, ...(version === undefined ? {} : { version }) };
+    const result =
+      target.hostId === null
+        ? await runInstall(input, ctx.signal)
+        : await host.call("install", input, { hostId: target.hostId, signal: ctx.signal });
+
+    if (json) return { exitCode: result.ok ? 0 : 1, stdout: JSON.stringify(result) };
+
+    const lines = result.ok
+      ? [
+          result.alreadyInstalled
+            ? `Already installed: muse-acp ${result.version} at ${result.binaryPath}`
+            : `Installed muse-acp ${result.version} to ${result.binaryPath}`,
+          `target:   ${result.triple}`,
+          `release:  ${result.tag}`,
+          ...(result.sha256 === null ? [] : [`sha256:   ${result.sha256}`]),
+        ]
+      : [`Install failed: ${result.error}`, `url:      ${result.url}`];
+
+    return { exitCode: result.ok ? 0 : 1, stdout: [...lines, ...result.notes.map((n) => `note:     ${n}`)].join("\n") };
+  }
 
   async function statusCmd(
     argv: string[],
     ctx: PluginCliContext,
   ): Promise<{ exitCode: number; stdout: string }> {
     const json = argv.includes("--json");
-    const machineIndex = argv.indexOf("--machine");
-    const machine = machineIndex === -1 ? undefined : argv[machineIndex + 1];
     const current = await settings.get();
+    const target = await resolveTarget(bb, ctx, flag(argv, "--machine"));
 
-    const target = await resolveTarget(bb, ctx, machine);
     let probe;
-    if (target.hostId && !target.error) {
+    if (target.hostId !== null && target.error === undefined) {
       try {
         probe = await host.call("probe", null, { hostId: target.hostId, signal: ctx.signal });
       } catch (err) {
@@ -116,6 +170,7 @@ export default async function plugin(bb: BbPluginApi) {
           arch: "",
           binaryPath: null,
           version: null,
+          museCliPath: null,
           error: (err as Error).message,
         };
       }
@@ -128,14 +183,15 @@ export default async function plugin(bb: BbPluginApi) {
       providerId: PROVIDER_ID,
       displayName: DISPLAY_NAME,
       command: current.command,
-      target: target.hostId ? target.label : target.error ?? "this machine (server)",
+      target: target.hostId === null ? target.error ?? "this machine (server)" : target.label,
       platform: [probe.platform, probe.arch].filter(Boolean).join(" ") || "unknown",
       resolvedBinary: probe.binaryPath,
       version: probe.version,
+      museCli: probe.museCliPath,
       ready: probe.ok,
       hint: probe.ok
-        ? "Ready. The provider is listed on machines where this probe passes."
-        : probe.error ?? "Not installed. See https://github.com/BrokkAi/muse-acp#installation",
+        ? "Ready."
+        : probe.error ?? "Not installed. Run `bb muse-acp install`.",
     };
 
     return {
@@ -150,10 +206,16 @@ export default async function plugin(bb: BbPluginApi) {
             `platform:        ${status.platform}`,
             `resolvedBinary:  ${status.resolvedBinary ?? "-"}`,
             `version:         ${status.version ?? "-"}`,
+            `muse CLI:        ${status.museCli ?? "- (not installed)"}`,
             `ready:           ${status.ready}`,
             `hint:            ${status.hint}`,
           ].join("\n"),
     };
+  }
+
+  function flag(argv: string[], name: string): string | undefined {
+    const index = argv.indexOf(name);
+    return index === -1 ? undefined : argv[index + 1];
   }
 
   async function resolveTarget(
@@ -161,15 +223,15 @@ export default async function plugin(bb: BbPluginApi) {
     ctx: PluginCliContext,
     machine: string | undefined,
   ): Promise<{ hostId: string | null; label: string; error?: string }> {
-    if (machine) {
+    if (machine !== undefined) {
       const hosts = await bb.sdk.hosts.list({ signal: ctx.signal });
       const hit = hosts.find((h) => h.id === machine || h.name === machine);
-      if (!hit) {
+      if (hit === undefined) {
         return { hostId: null, label: "", error: `Machine '${machine}' not found. See \`bb machine list\`.` };
       }
       return { hostId: hit.id, label: hit.name };
     }
-    if (ctx.threadId) {
+    if (ctx.threadId !== undefined) {
       try {
         const thread = await bb.sdk.threads.get({ threadId: ctx.threadId, signal: ctx.signal });
         if (thread.environmentId) {
