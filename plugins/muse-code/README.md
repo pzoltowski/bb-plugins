@@ -4,6 +4,11 @@ Registers [Muse Code](https://github.com/BrokkAi/muse-acp) as a first-class bb
 agent provider, so it carries its own name and icon everywhere bb shows a
 provider — instead of the generic tool glyph a `customAgents` entry gets.
 
+![Muse Code in bb's composer: the Meta mark in the provider row and model chip, the Muse-Spark model list, and the six reasoning levels from None to Ultra](screenshots/model-and-reasoning-picker.png)
+
+*Muse Code picked in the composer — its own mark, its own models, and the reasoning
+levels it actually implements.*
+
 ## How it works
 
 Muse Code does not speak bb's protocol. It speaks its own Muse Session
