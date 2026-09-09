@@ -1,0 +1,11 @@
+{
+  "$schema": "https://getbb.app/schemas/plugins.schema.json",
+  "schemaVersion": 1,
+  "name": "pzoltowski-bb-plugins",
+  "plugins": [
+    {
+      "name": "muse-acp",
+      "source": "./plugins/muse-acp"
+    }
+  ]
+}

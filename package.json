@@ -1,0 +1,21 @@
+{
+  "name": "pzoltowski-bb-plugins",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "workspaces": [
+    "plugins/*"
+  ],
+  "scripts": {
+    "build": "env -u BB_CLI npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.4.47"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

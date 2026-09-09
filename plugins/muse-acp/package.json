@@ -1,0 +1,25 @@
+{
+  "name": "bb-plugin-muse-acp",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "bb": ">=0.42",
+    "bbPluginSdk": ">=0.4.47"
+  },
+  "bb": {
+    "name": "Muse Code (ACP)",
+    "description": "Run bb threads on Muse Code through the muse-acp adapter.",
+    "branding": {
+      "icon": "Cpu"
+    },
+    "server": "./server.ts"
+  },
+  "dependencies": {
+    "@get-bb/plugin-sdk": "0.4.47"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
