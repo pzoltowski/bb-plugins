@@ -11,5 +11,8 @@ glyph a manually configured ACP agent shows. Its reasoning levels come from
 what the adapter reports, so the picker offers the efforts Muse implements and
 none it does not.
 
+Token and context usage come from Muse itself rather than an estimate, so the
+context meter reflects what the session actually spent.
+
 Requires a Muse Code subscription and the `muse` CLI, which is where Muse Code
 authentication lives.

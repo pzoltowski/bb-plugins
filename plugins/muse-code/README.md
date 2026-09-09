@@ -4,6 +4,37 @@ Registers [Muse Code](https://github.com/BrokkAi/muse-acp) as a first-class bb
 agent provider, so it carries its own name and icon everywhere bb shows a
 provider — instead of the generic tool glyph a `customAgents` entry gets.
 
+## How it works
+
+Muse Code does not speak bb's protocol. It speaks its own Muse Session
+Protocol (MSP), so a translator sits between them:
+
+```
+bb  ──ACP──▶  muse-acp  ──MSP──▶  Muse Code
+```
+
+[`muse-acp`](https://github.com/BrokkAi/muse-acp) is that translator: an
+independent, dependency-free Rust bridge by Brokk.ai, Apache-2.0. This plugin
+does not vendor or rebuild it — `bb muse-code install` downloads the release
+the project publishes and checks it against the SHA-256 published beside it.
+Tested against **v0.2.5**.
+
+## What works
+
+| | | |
+| --- | --- | --- |
+| Token and context usage | yes | Reported by Muse, not estimated by bb — the adapter forwards MSP session usage as ACP `usage_update` |
+| Model picker | yes | From your signed-in account: `muse-spark-1.3`, `-contributor`, and the 1.2 pair |
+| Reasoning effort | yes | Six levels, from what the adapter reports |
+| Tool approvals | yes | Muse's `ask`/`auto`/`deny` modes surface as bb permission prompts |
+| Session resume | yes | The adapter advertises `list`, `resume`, `close` |
+| Muse skills | yes | Arrive as ACP commands in the `/` typeahead |
+| Images in prompts | yes | Text, images, and embedded context |
+| Subscription quota | no | Muse exposes no quota endpoint, so bb's usage panel omits it |
+| Thread fork | no | The adapter advertises no `session/fork` |
+| Thread archive / rename | no | Not implemented by the adapter |
+| In-app Install button | no | bb offers one only for agents in its built-in dialect list; Muse is not in it. Use `bb muse-code install` |
+
 ## Install
 
 ```sh
