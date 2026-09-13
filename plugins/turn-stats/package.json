@@ -1,0 +1,36 @@
+{
+  "name": "bb-plugin-turn-stats",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "bb": ">=0.42",
+    "bbPluginSdk": ">=0.4.47"
+  },
+  "bb": {
+    "name": "Turn Stats",
+    "description": "Per-turn timing, token usage, average throughput, and estimated cost \u2014 a live icon in the thread header, a per-message action, and a history side panel.",
+    "branding": {
+      "icon": "ChartColumn"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "dependencies": {
+    "@get-bb/plugin-sdk": "0.4.47",
+    "zod": "^4.3.6",
+    "@radix-ui/react-hover-card": "^1.1.19",
+    "@radix-ui/react-tooltip": "^1.2.16"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0"
+  },
+  "scripts": {
+    "build": "env -u BB_CLI bb plugin build .",
+    "dev": "env -u BB_CLI bb plugin dev .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.ts"
+  }
+}

@@ -1,0 +1,1500 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BB turn-stats plugin — placement variants</title>
+    <style>
+      :root {
+        --bg: #0a0b0d;
+        --win: #141619;
+        --win2: #191c20;
+        --border: #26292e;
+        --border2: #2f333a;
+        --text: #d8dadf;
+        --muted: #8a8f98;
+        --faint: #5f646d;
+        --accent: #7b9bff;
+        --accent-dim: rgba(123, 155, 255, 0.14);
+        --ok: #57b585;
+        --warn: #d9a04b;
+        --mono: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          13px/1.5 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        padding: 28px 32px 64px;
+      }
+      h1 {
+        font-size: 17px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      .sub {
+        color: var(--muted);
+        margin-top: 4px;
+        margin-bottom: 26px;
+      }
+      .variant {
+        margin-bottom: 36px;
+      }
+      .vhead {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .badge {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        background: var(--accent-dim);
+        color: var(--accent);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 12px;
+      }
+      .vname {
+        font-weight: 650;
+        font-size: 14px;
+      }
+      .pill {
+        font-size: 10.5px;
+        padding: 2px 8px;
+        border-radius: 99px;
+        border: 1px solid var(--border2);
+        color: var(--muted);
+      }
+      .pill.always {
+        color: var(--ok);
+        border-color: rgba(87, 181, 133, 0.4);
+      }
+      .pill.hover {
+        color: var(--warn);
+        border-color: rgba(217, 160, 75, 0.4);
+      }
+      .pill.demand {
+        color: var(--accent);
+        border-color: rgba(123, 155, 255, 0.4);
+      }
+      .pill.fragile {
+        color: #e07575;
+        border-color: rgba(224, 117, 117, 0.4);
+      }
+      .vnote {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 10px;
+        max-width: 760px;
+      }
+      .vnote code {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text);
+      }
+
+      /* ---- fake BB window ---- */
+      .win {
+        background: var(--win);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        max-width: 900px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+      }
+      .win-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--border);
+        background: var(--win2);
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+      .dot.r {
+        background: #3a3d43;
+      }
+      .dot.y {
+        background: #3a3d43;
+      }
+      .dot.g {
+        background: #3a3d43;
+      }
+      .win-title {
+        color: var(--faint);
+        font-size: 11px;
+        margin-left: 6px;
+      }
+
+      .thread-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .thread-title {
+        font-weight: 600;
+        font-size: 12.5px;
+      }
+      .head-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .iconbtn {
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        color: var(--faint);
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        border: 1px solid transparent;
+      }
+      .iconbtn.line {
+        border-color: var(--border2);
+      }
+
+      /* the stats chip */
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        background: #1b1e23;
+        border: 1px solid var(--border2);
+        border-radius: 99px;
+        padding: 3px 10px;
+        white-space: nowrap;
+      }
+      .chip b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .chip .sep {
+        color: #3a3e46;
+      }
+      .chip .live-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .chip.live {
+        color: var(--accent);
+        border-color: rgba(123, 155, 255, 0.35);
+      }
+      .chip.live b {
+        color: var(--accent);
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.35;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      /* timeline */
+      .tl {
+        padding: 14px 16px 18px;
+      }
+      .urow,
+      .arow {
+        margin-bottom: 14px;
+      }
+      .urow .bubble {
+        background: #22252b;
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        padding: 8px 12px;
+        display: inline-block;
+        max-width: 70%;
+        font-size: 12.5px;
+      }
+      .arow .text {
+        font-size: 12.5px;
+        color: var(--text);
+        max-width: 82%;
+      }
+      .arow .text p {
+        margin-bottom: 6px;
+      }
+      .turn-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--faint);
+        font-size: 11.5px;
+        margin: 10px 0 6px;
+      }
+      .turn-head .rule {
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+      .statsline {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--faint);
+        margin: 2px 0 0 0;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .statsline .zap {
+        color: var(--accent);
+        font-size: 11px;
+      }
+      .ghost-note {
+        position: absolute;
+        font-size: 10px;
+        color: #e07575;
+        border: 1px dashed rgba(224, 117, 117, 0.5);
+        border-radius: 4px;
+        padding: 1px 6px;
+        background: rgba(224, 117, 117, 0.07);
+      }
+
+      /* message hover toolbar */
+      .msgwrap {
+        position: relative;
+      }
+      .msgactions {
+        position: absolute;
+        top: -12px;
+        right: 8px;
+        display: flex;
+        gap: 2px;
+        padding: 3px;
+        background: #1e2126;
+        border: 1px solid var(--border2);
+        border-radius: 8px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        opacity: 0;
+        transition: opacity 0.12s;
+      }
+      .msgwrap:hover .msgactions,
+      .msgwrap.force-hover .msgactions {
+        opacity: 1;
+      }
+      .msgactions .iconbtn {
+        width: 24px;
+        height: 24px;
+        color: var(--muted);
+      }
+      .msgactions .iconbtn.hot {
+        color: var(--accent);
+        background: var(--accent-dim);
+      }
+      .msgactions .iconbtn:hover {
+        color: var(--text);
+      }
+      .cursor {
+        position: absolute;
+        right: 190px;
+        top: 30px;
+        font-size: 16px;
+      }
+      .ttip {
+        position: absolute;
+        top: -34px;
+        right: 6px;
+        font-size: 10.5px;
+        color: var(--text);
+        background: #22252b;
+        border: 1px solid var(--border2);
+        padding: 2px 7px;
+        border-radius: 5px;
+        white-space: nowrap;
+      }
+
+      /* composer banner */
+      .composer-zone {
+        border-top: 1px solid var(--border);
+        padding: 10px 14px 14px;
+      }
+      .banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #1b1e23;
+        border: 1px solid var(--border2);
+        border-radius: 8px;
+        padding: 7px 11px;
+        margin-bottom: 8px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .banner b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .banner .dismiss {
+        margin-left: auto;
+        color: var(--faint);
+        font-family: inherit;
+      }
+      .composer {
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        padding: 9px 12px;
+        color: var(--faint);
+        font-size: 12.5px;
+        background: #16181c;
+      }
+
+      /* split + side panel */
+      .split {
+        display: flex;
+      }
+      .split .main {
+        flex: 1.4;
+        min-width: 0;
+      }
+      .panel {
+        flex: 1;
+        border-left: 1px solid var(--border);
+        background: #121417;
+        min-width: 300px;
+      }
+      .panel-tabs {
+        display: flex;
+        gap: 2px;
+        padding: 8px 10px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .ptab {
+        font-size: 11px;
+        color: var(--faint);
+        padding: 5px 10px;
+        border-radius: 6px 6px 0 0;
+      }
+      .ptab.on {
+        color: var(--text);
+        background: #1b1e23;
+        border: 1px solid var(--border2);
+        border-bottom: none;
+      }
+      .ptable {
+        padding: 8px 10px 12px;
+      }
+      .ptrow {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 9px;
+        border-radius: 7px;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .ptrow + .ptrow {
+        margin-top: 2px;
+      }
+      .ptrow.sel {
+        background: #1b1e23;
+        border: 1px solid var(--border2);
+      }
+      .ptrow .st {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+      }
+      .st.ok {
+        background: var(--ok);
+      }
+      .st.run {
+        background: var(--accent);
+        animation: pulse 1.6s infinite;
+      }
+      .st.err {
+        background: #e07575;
+      }
+      .ptrow .t {
+        color: var(--text);
+      }
+      .ptrow .m {
+        color: var(--faint);
+        margin-left: auto;
+      }
+
+      /* context bar (the row from your screenshot) */
+      .ctxbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 7px 14px;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--win2);
+      }
+      .ctxbar .bi {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+      }
+      .ctxbar .right {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .full-access {
+        color: #e8863a;
+        font-weight: 600;
+      }
+      .stat-icon {
+        position: relative;
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        font-size: 12px;
+        background: var(--accent-dim);
+        border: 1px solid rgba(123, 155, 255, 0.35);
+        cursor: default;
+      }
+      .stat-icon.idle {
+        color: var(--faint);
+        background: transparent;
+        border-color: transparent;
+      }
+      .anchor {
+        position: relative;
+      }
+
+      /* hover popover card (Artificial-Analysis style, dark) */
+      .popcard {
+        position: absolute;
+        top: 30px;
+        right: 0;
+        width: 246px;
+        background: #1b1e23;
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6);
+        padding: 11px 12px;
+        z-index: 5;
+      }
+      .popcard .pt {
+        font-weight: 650;
+        font-size: 12px;
+        color: var(--text);
+      }
+      .popcard .ps {
+        font-size: 10.5px;
+        color: var(--faint);
+        margin-bottom: 8px;
+      }
+      .stackbar {
+        display: flex;
+        height: 9px;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 9px 0 7px;
+      }
+      .seg {
+        height: 100%;
+      }
+      .seg.in {
+        background: #8a6fd8;
+      }
+      .seg.cached {
+        background: #4a8f6d;
+      }
+      .seg.reason {
+        background: #d9a04b;
+      }
+      .seg.out {
+        background: #7b9bff;
+      }
+      .kv {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        padding: 1.5px 0;
+        color: var(--muted);
+      }
+      .kv b {
+        color: var(--text);
+        font-weight: 600;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .kv .sw {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+        margin-right: 6px;
+      }
+      .sw.in {
+        background: #8a6fd8;
+      }
+      .sw.cached {
+        background: #4a8f6d;
+      }
+      .sw.reason {
+        background: #d9a04b;
+      }
+      .sw.out {
+        background: #7b9bff;
+      }
+      .pf {
+        border-top: 1px solid var(--border);
+        margin-top: 8px;
+        padding-top: 7px;
+        font-size: 10.5px;
+        color: var(--faint);
+        font-family: var(--mono);
+        line-height: 1.7;
+      }
+      .pf .warn {
+        color: var(--warn);
+      }
+
+      /* richer side-panel rows */
+      .sessline {
+        padding: 8px 12px 4px;
+        font-size: 10.5px;
+        color: var(--faint);
+        font-family: var(--mono);
+        line-height: 1.8;
+      }
+      .sessline b {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .ptrow2 {
+        padding: 7px 9px;
+        border-radius: 7px;
+      }
+      .ptrow2 + .ptrow2 {
+        margin-top: 2px;
+      }
+      .ptrow2.sel {
+        background: #1b1e23;
+        border: 1px solid var(--border2);
+      }
+      .ptrow2 .l1 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .ptrow2 .l1 .m {
+        color: var(--faint);
+        margin-left: auto;
+      }
+      .ptrow2 .l2 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 5px;
+      }
+      .minibar {
+        flex: 0 0 74px;
+        display: flex;
+        height: 5px;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .ptrow2 .l2 .det {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--faint);
+      }
+      .pttot {
+        margin-top: 6px;
+        padding: 8px 9px 2px;
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+      .pttot b {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      /* legend */
+      .legendrow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        padding: 6px 12px 8px;
+        border-bottom: 1px solid var(--border);
+        font-size: 10px;
+        color: var(--muted);
+        font-family: var(--mono);
+      }
+      .legendrow .li {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      /* dense table variant */
+      .tbl {
+        padding: 6px 10px 10px;
+        font-family: var(--mono);
+        font-size: 10.5px;
+      }
+      .trow {
+        display: grid;
+        grid-template-columns: 34px 44px 44px 52px 40px 46px 46px 46px;
+        gap: 6px;
+        align-items: baseline;
+        padding: 4px 2px;
+        border-radius: 5px;
+      }
+      .trow.hd {
+        color: var(--faint);
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 1px solid var(--border);
+        border-radius: 0;
+        padding-bottom: 6px;
+        margin-bottom: 3px;
+      }
+      .trow.sel {
+        background: #1b1e23;
+      }
+      .trow .c {
+        color: var(--muted);
+        text-align: right;
+      }
+      .trow .c.strong {
+        color: var(--text);
+      }
+      .trow .c.dim {
+        color: var(--faint);
+      }
+      .trow .dotcell {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text);
+      }
+      .tfoot {
+        margin-top: 5px;
+        padding-top: 7px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      /* per-turn card variant */
+      .tcard {
+        background: #17191d;
+        border: 1px solid var(--border2);
+        border-radius: 8px;
+        padding: 9px 10px;
+      }
+      .tcard + .tcard {
+        margin-top: 8px;
+      }
+      .tcard .ct {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .tcard .ct .m {
+        margin-left: auto;
+        color: var(--faint);
+      }
+      .tcard .stackbar {
+        margin: 8px 0 6px;
+      }
+      .tcard .kv {
+        font-size: 10.5px;
+      }
+
+      /* column chart variant */
+      .chart {
+        display: flex;
+        align-items: flex-end;
+        gap: 18px;
+        height: 108px;
+        padding: 10px 14px 0;
+      }
+      .colwrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        flex: 1;
+      }
+      .colval {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--muted);
+      }
+      .col {
+        width: 30px;
+        display: flex;
+        flex-direction: column-reverse;
+        border-radius: 3px 3px 0 0;
+        overflow: hidden;
+      }
+      .col .seg {
+        width: 100%;
+      }
+      .collab {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--faint);
+      }
+      .colwrap.sel .collab,
+      .colwrap.sel .colval {
+        color: var(--text);
+      }
+      .colwrap.sel .col {
+        outline: 1px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .chartdetail {
+        padding: 8px 12px 10px;
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+      }
+      .chartdetail b {
+        color: var(--text);
+      }
+
+      .grid4 {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+      }
+      .grid4 > .cell {
+        flex: 0 0 auto;
+      }
+      .pwin {
+        background: var(--win);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        width: 352px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+      }
+      .pwin .panel {
+        min-width: 0;
+      }
+
+      .callout {
+        display: inline-block;
+        font-size: 10.5px;
+        color: var(--accent);
+        border: 1px solid rgba(123, 155, 255, 0.4);
+        border-radius: 4px;
+        padding: 1px 6px;
+        background: var(--accent-dim);
+      }
+      .avail {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        margin-bottom: 24px;
+        font-size: 11px;
+        color: var(--faint);
+      }
+      .avail span {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .avail .y {
+        color: var(--ok);
+      }
+      .avail .n {
+        color: var(--warn);
+      }
+      .flag {
+        font-size: 10.5px;
+        color: var(--faint);
+      }
+      .legend {
+        color: var(--faint);
+        font-size: 11.5px;
+        margin-top: 4px;
+      }
+      .two {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+      }
+      .two > div {
+        flex: 1;
+        min-width: 380px;
+      }
+      .mini-label {
+        font-size: 10.5px;
+        color: var(--faint);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>BB “turn stats” plugin — where the numbers could live</h1>
+    <div class="sub">
+      Mock only — same stats everywhere:
+      <span style="font-family: var(--mono)">1m 25s · 3.2k in · 214 out · ~8.4 tok/s</span>. Open
+      this file in a browser to try the real hover on variant B.
+    </div>
+    <div class="avail">
+      <span
+        ><b class="y">✓ in BB's data:</b>&nbsp;per-turn in / out / cached-in / reasoning tokens ·
+        duration · model name · session start &amp; last-activity time</span
+      >
+      <span
+        ><b class="n">~ estimated:</b>&nbsp;$ cost — BB only reports plan-quota $, so per-turn cost
+        = tokens × bundled price table, labeled “est.”</span
+      >
+      <span
+        ><b class="n">✗ not available:</b>&nbsp;cache-write vs cache-hit split · true decode tok/s
+        (avg only)</span
+      >
+    </div>
+
+    <!-- ============ A ============ -->
+    <div class="variant">
+      <div class="vhead">
+        <div class="badge">A</div>
+        <div class="vname">Thread-header chip</div>
+        <span class="pill always">always visible</span
+        ><span class="pill">supported slot · experimental</span>
+      </div>
+      <div class="vnote">
+        A React component pinned at the left of the thread header’s action row. Shows the
+        <b>active / latest</b> turn — ticks live while running, settles when it finishes. Click
+        could open a popover or the side panel. Only ever shows <b>one</b> turn at a time.
+      </div>
+      <div class="two">
+        <div>
+          <div class="mini-label">running</div>
+          <div class="win">
+            <div class="thread-head">
+              <span class="thread-title">Fix auth refresh race</span>
+              <div class="head-actions">
+                <span class="chip live"
+                  ><span class="live-dot"></span><b>0m 41s</b><span class="sep">·</span>96 out<span
+                    class="sep"
+                    >·</span
+                  ><b>~9.1 tok/s</b></span
+                >
+                <span class="iconbtn line">⎇</span><span class="iconbtn line">⧉</span
+                ><span class="iconbtn">✕</span>
+              </div>
+            </div>
+            <div class="tl">
+              <div class="arow">
+                <div class="text"><p>Streaming response…</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="mini-label">finished</div>
+          <div class="win">
+            <div class="thread-head">
+              <span class="thread-title">Fix auth refresh race</span>
+              <div class="head-actions">
+                <span class="chip"
+                  >⚡ <b>1m 25s</b><span class="sep">·</span>3.2k in<span class="sep">·</span>214
+                  out<span class="sep">·</span><b>8.4 tok/s</b></span
+                >
+                <span class="iconbtn line">⎇</span><span class="iconbtn line">⧉</span
+                ><span class="iconbtn">✕</span>
+              </div>
+            </div>
+            <div class="tl">
+              <div class="arow">
+                <div class="text"><p>Done — the refresh token is now rotated before…</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ B ============ -->
+    <div class="variant">
+      <div class="vhead">
+        <div class="badge">B</div>
+        <div class="vname">Message hover action → opens stats panel</div>
+        <span class="pill hover">hover only</span><span class="pill">supported slot</span>
+      </div>
+      <div class="vnote">
+        A “⚡ Turn stats” icon joins the existing per-message action bar (Copy, Add to chat…).
+        Nothing visible until you hover. Clicking opens the side panel (E) scrolled to
+        <b>that message’s turn</b>. Caveat: the button also appears on <b>your</b> prompts — the
+        slot can’t filter to assistant-only.
+        <span class="flag"
+          >(This mock forces the hovered state on the left; hover the live page to feel it.)</span
+        >
+      </div>
+      <div class="two">
+        <div>
+          <div class="mini-label">hovered (assistant)</div>
+          <div class="win">
+            <div class="tl" style="padding-top: 22px">
+              <div class="urow">
+                <div class="bubble">Rotate the refresh token before it expires</div>
+              </div>
+              <div class="arow msgwrap force-hover">
+                <div class="ttip">Turn stats</div>
+                <div class="msgactions">
+                  <span class="iconbtn">⧉</span><span class="iconbtn">＋</span
+                  ><span class="iconbtn">↩</span><span class="iconbtn hot">⚡</span>
+                </div>
+                <div class="cursor">🖱</div>
+                <div class="text">
+                  <p>
+                    Done — the refresh token is rotated pre-emptively now, and the 401 retry path is
+                    covered by a test.
+                  </p>
+                </div>
+              </div>
+              <div class="turn-head"><span>Worked for 1m 25s</span><span class="rule"></span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="mini-label">not hovered</div>
+          <div class="win">
+            <div class="tl" style="padding-top: 22px">
+              <div class="urow">
+                <div class="bubble">Rotate the refresh token before it expires</div>
+              </div>
+              <div class="arow msgwrap">
+                <div class="msgactions">
+                  <span class="iconbtn">⧉</span><span class="iconbtn">＋</span
+                  ><span class="iconbtn">↩</span><span class="iconbtn">⚡</span>
+                </div>
+                <div class="text">
+                  <p>
+                    Done — the refresh token is rotated pre-emptively now, and the 401 retry path is
+                    covered by a test.
+                  </p>
+                </div>
+              </div>
+              <div class="turn-head"><span>Worked for 1m 25s</span><span class="rule"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ C ============ -->
+    <div class="variant">
+      <div class="vhead">
+        <div class="badge">C</div>
+        <div class="vname">Inline line under “Worked for …” — the Zed look</div>
+        <span class="pill always">always visible</span
+        ><span class="pill fragile">needs DOM injection or core PR</span>
+      </div>
+      <div class="vnote">
+        The closest match to what you described — a muted stat line under each completed turn. No
+        clean plugin API for this: either a content script that decorates the timeline DOM (works,
+        brittle to BB internals) or a small PR adding a slot after the turn row.
+      </div>
+      <div class="win">
+        <div class="tl">
+          <div class="urow">
+            <div class="bubble">Rotate the refresh token before it expires</div>
+          </div>
+          <div class="arow">
+            <div class="text">
+              <p>
+                Done — the refresh token is rotated pre-emptively now, and the 401 retry path is
+                covered by a test.
+              </p>
+            </div>
+          </div>
+          <div class="turn-head"><span>Worked for 1m 25s</span><span class="rule"></span></div>
+          <div class="statsline" style="position: relative">
+            <span class="zap">⚡</span>3.2k in · 2.8k cached · 214 out · ~8.4 tok/s avg
+            <span class="ghost-note" style="right: 0">injected by plugin</span>
+          </div>
+          <div class="urow" style="margin-top: 14px">
+            <div class="bubble">Now add a regression test</div>
+          </div>
+          <div class="arow">
+            <div class="text">
+              <p>
+                Added
+                <span style="font-family: var(--mono); font-size: 11px">auth.refresh.test.ts</span>
+                covering the rotation window…
+              </p>
+            </div>
+          </div>
+          <div class="turn-head"><span>Worked for 48s</span><span class="rule"></span></div>
+          <div class="statsline">
+            <span class="zap">⚡</span>1.9k in · 1.1k cached · 402 out · ~9.7 tok/s avg
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        Per turn, exactly where you wanted it — but this is the one placement BB’s plugin API
+        doesn’t officially expose.
+      </div>
+    </div>
+
+    <!-- ============ D ============ -->
+    <div class="variant">
+      <div class="vhead">
+        <div class="badge">D</div>
+        <div class="vname">Composer banner</div>
+        <span class="pill always">always visible</span><span class="pill">supported slot</span>
+      </div>
+      <div class="vnote">
+        A slim card pinned above the composer showing the <b>last</b> turn’s stats. Sits at the
+        visual “end of the conversation,” always on screen — but it’s fixed chrome, not attached to
+        a message, and only ever shows the latest turn.
+      </div>
+      <div class="win">
+        <div class="tl" style="padding-bottom: 6px">
+          <div class="arow">
+            <div class="text"><p>Done — the refresh token is rotated pre-emptively now…</p></div>
+          </div>
+          <div class="turn-head"><span>Worked for 1m 25s</span><span class="rule"></span></div>
+        </div>
+        <div class="composer-zone">
+          <div class="banner">
+            ⚡ Last turn&nbsp; <b>1m 25s</b> &nbsp;·&nbsp; 3.2k in / 214 out &nbsp;·&nbsp;
+            <b>8.4 tok/s avg</b><span class="dismiss">✕</span>
+          </div>
+          <div class="composer">Ask a follow-up…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ E ============ -->
+    <div class="variant">
+      <div class="vhead">
+        <div class="badge">E</div>
+        <div class="vname">Side panel — per-turn history</div>
+        <span class="pill demand">on demand</span><span class="pill">supported slot</span>
+      </div>
+      <div class="vnote">
+        A “Turn stats” tab in the thread’s side panel listing <b>every</b> turn. This is where full
+        history lives; the message action (B) deep-links into it. Click a row → jump to that turn in
+        the timeline.
+      </div>
+      <div class="grid4">
+        <!-- E1: compact list + legend -->
+        <div class="cell">
+          <div class="mini-label">E1 · compact list + legend</div>
+          <div class="pwin">
+            <div class="panel-tabs">
+              <span class="ptab on">⚡ Turn stats</span><span class="ptab">Files</span
+              ><span class="ptab">Git</span>
+            </div>
+            <div class="sessline">
+              session <b>2h 14m ago</b> · last msg <b>3m ago</b> · <b>claude-sonnet-4-5</b>
+            </div>
+            <div class="legendrow">
+              <span class="li"><span class="sw in"></span>input</span>
+              <span class="li"><span class="sw cached"></span>cached</span>
+              <span class="li"><span class="sw reason"></span>reasoning</span>
+              <span class="li"><span class="sw out"></span>output</span>
+            </div>
+            <div class="ptable">
+              <div class="ptrow2 sel">
+                <div class="l1">
+                  <span class="st ok"></span><span class="t">turn 3</span><span>1m 25s</span>
+                  <span class="m">8.4 t/s · $0.14</span>
+                </div>
+                <div class="l2">
+                  <span class="minibar"
+                    ><span class="seg in" style="width: 34%"></span
+                    ><span class="seg cached" style="width: 44%"></span
+                    ><span class="seg reason" style="width: 9%"></span
+                    ><span class="seg out" style="width: 13%"></span
+                  ></span>
+                  <span class="det">3.2k · 2.8k · 87 · 214</span>
+                </div>
+              </div>
+              <div class="ptrow2">
+                <div class="l1">
+                  <span class="st ok"></span><span class="t">turn 2</span><span>48s</span>
+                  <span class="m">9.7 t/s · $0.21</span>
+                </div>
+                <div class="l2">
+                  <span class="minibar"
+                    ><span class="seg in" style="width: 22%"></span
+                    ><span class="seg cached" style="width: 52%"></span
+                    ><span class="seg reason" style="width: 8%"></span
+                    ><span class="seg out" style="width: 18%"></span
+                  ></span>
+                  <span class="det">1.9k · 4.1k · 133 · 402</span>
+                </div>
+              </div>
+              <div class="ptrow2">
+                <div class="l1">
+                  <span class="st ok"></span><span class="t">turn 1</span><span>2m 03s</span>
+                  <span class="m">9.2 t/s · $0.58</span>
+                </div>
+                <div class="l2">
+                  <span class="minibar"
+                    ><span class="seg in" style="width: 41%"></span
+                    ><span class="seg cached" style="width: 31%"></span
+                    ><span class="seg reason" style="width: 12%"></span
+                    ><span class="seg out" style="width: 16%"></span
+                  ></span>
+                  <span class="det">7.4k · 5.6k · 480 · 1.1k</span>
+                </div>
+              </div>
+              <div class="ptrow2">
+                <div class="l1">
+                  <span class="st err"></span><span class="t">turn 0</span><span>12s</span>
+                  <span class="m">failed · no usage</span>
+                </div>
+              </div>
+              <div class="pttot">total <b>12.5k in · 1.7k out</b> · ~<b>$0.93 est.</b></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- E2: dense table -->
+        <div class="cell">
+          <div class="mini-label">E2 · dense table</div>
+          <div class="pwin">
+            <div class="panel-tabs">
+              <span class="ptab on">⚡ Turn stats</span><span class="ptab">Files</span
+              ><span class="ptab">Git</span>
+            </div>
+            <div class="sessline">
+              session <b>2h 14m ago</b> · last msg <b>3m ago</b> · <b>claude-sonnet-4-5</b>
+            </div>
+            <div class="tbl">
+              <div class="trow hd">
+                <span>turn</span><span>time</span><span class="c">in</span
+                ><span class="c">cached</span><span class="c">out</span><span class="c">t/s</span
+                ><span class="c">est.$</span>
+              </div>
+              <div class="trow sel">
+                <span class="dotcell"><span class="st ok"></span>3</span><span>1m25s</span
+                ><span class="c">3,212</span><span class="c dim">2,804</span
+                ><span class="c strong">214</span><span class="c">8.4</span
+                ><span class="c">0.14</span>
+              </div>
+              <div class="trow">
+                <span class="dotcell"><span class="st ok"></span>2</span><span>48s</span
+                ><span class="c">1,904</span><span class="c dim">4,102</span
+                ><span class="c strong">402</span><span class="c">9.7</span
+                ><span class="c">0.21</span>
+              </div>
+              <div class="trow">
+                <span class="dotcell"><span class="st ok"></span>1</span><span>2m03s</span
+                ><span class="c">7,390</span><span class="c dim">5,610</span
+                ><span class="c strong">1,104</span><span class="c">9.2</span
+                ><span class="c">0.58</span>
+              </div>
+              <div class="trow">
+                <span class="dotcell"><span class="st err"></span>0</span><span>12s</span
+                ><span class="c dim" colspan="2">failed — no usage</span>
+              </div>
+              <div class="tfoot"><span>totals</span><span>12.5k in · 1.7k out · ~$0.93</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- E3: per-turn cards -->
+        <div class="cell">
+          <div class="mini-label">E3 · per-turn cards</div>
+          <div class="pwin">
+            <div class="panel-tabs">
+              <span class="ptab on">⚡ Turn stats</span><span class="ptab">Files</span
+              ><span class="ptab">Git</span>
+            </div>
+            <div class="legendrow">
+              <span class="li"><span class="sw in"></span>input</span>
+              <span class="li"><span class="sw cached"></span>cached</span>
+              <span class="li"><span class="sw reason"></span>reasoning</span>
+              <span class="li"><span class="sw out"></span>output</span>
+            </div>
+            <div class="ptable">
+              <div class="tcard">
+                <div class="ct">
+                  <span class="st ok"></span><b>turn 3 · 1m 25s</b>
+                  <span class="m">8.4 t/s · ~$0.14</span>
+                </div>
+                <div class="stackbar">
+                  <span class="seg in" style="width: 34%"></span
+                  ><span class="seg cached" style="width: 44%"></span
+                  ><span class="seg reason" style="width: 9%"></span
+                  ><span class="seg out" style="width: 13%"></span>
+                </div>
+                <div class="kv"><span>3,212 in · 2,804 cached · 87 reas · 214 out</span></div>
+              </div>
+              <div class="tcard">
+                <div class="ct">
+                  <span class="st ok"></span><b>turn 2 · 48s</b>
+                  <span class="m">9.7 t/s · ~$0.21</span>
+                </div>
+                <div class="stackbar">
+                  <span class="seg in" style="width: 22%"></span
+                  ><span class="seg cached" style="width: 52%"></span
+                  ><span class="seg reason" style="width: 8%"></span
+                  ><span class="seg out" style="width: 18%"></span>
+                </div>
+                <div class="kv"><span>1,904 in · 4,102 cached · 133 reas · 402 out</span></div>
+              </div>
+              <div class="pttot">2 more turns · scroll ↓</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- E4: column chart -->
+        <div class="cell">
+          <div class="mini-label">E4 · chart view (Artificial-Analysis style)</div>
+          <div class="pwin">
+            <div class="panel-tabs">
+              <span class="ptab on">⚡ Turn stats</span><span class="ptab">Files</span
+              ><span class="ptab">Git</span>
+            </div>
+            <div class="sessline">tokens per turn · est. cost on top</div>
+            <div class="chart">
+              <div class="colwrap">
+                <span class="colval">✕</span>
+                <div class="col" style="height: 6px">
+                  <span class="seg" style="height: 6px; background: #3a3d43"></span>
+                </div>
+                <span class="collab">t0</span>
+              </div>
+              <div class="colwrap">
+                <span class="colval">$0.58</span>
+                <div class="col" style="height: 88px">
+                  <span class="seg in" style="height: 45px"></span
+                  ><span class="seg cached" style="height: 33px"></span
+                  ><span class="seg reason" style="height: 3px"></span
+                  ><span class="seg out" style="height: 7px"></span>
+                </div>
+                <span class="collab">t1</span>
+              </div>
+              <div class="colwrap">
+                <span class="colval">$0.21</span>
+                <div class="col" style="height: 40px">
+                  <span class="seg in" style="height: 12px"></span
+                  ><span class="seg cached" style="height: 25px"></span
+                  ><span class="seg reason" style="height: 1px"></span
+                  ><span class="seg out" style="height: 2px"></span>
+                </div>
+                <span class="collab">t2</span>
+              </div>
+              <div class="colwrap sel">
+                <span class="colval">$0.14</span>
+                <div class="col" style="height: 38px">
+                  <span class="seg in" style="height: 19px"></span
+                  ><span class="seg cached" style="height: 17px"></span
+                  ><span class="seg reason" style="height: 1px"></span
+                  ><span class="seg out" style="height: 1px"></span>
+                </div>
+                <span class="collab">t3</span>
+              </div>
+            </div>
+            <div class="legendrow" style="border-top: 1px solid var(--border); border-bottom: none">
+              <span class="li"><span class="sw in"></span>input</span>
+              <span class="li"><span class="sw cached"></span>cached</span>
+              <span class="li"><span class="sw reason"></span>reasoning</span>
+              <span class="li"><span class="sw out"></span>output</span>
+            </div>
+            <div class="chartdetail">
+              <b>turn 3</b> · 1m 25s · 3,212 in · 2,804 cached · 87 reas · 214 out ·
+              <b>8.4 t/s</b> · ~$0.14
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        Four options for the same panel — E1 scannable rows, E2 spreadsheet-dense, E3 card detail,
+        E4 chart-first (click a column → detail line, or hover for the AA-style card). All carry the
+        legend + session summary; we can mix (e.g. E4 chart on top + E2 table below).
+      </div>
+    </div>
+
+    <!-- ============ F ============ -->
+    <div class="variant">
+      <div class="vhead">
+        <div class="badge">F</div>
+        <div class="vname">Context-bar icon → hover breakdown card</div>
+        <span class="pill hover">hover to peek</span
+        ><span class="pill">click pins card / opens panel</span
+        ><span class="pill">supported slot · experimental</span>
+      </div>
+      <div class="vnote">
+        Your idea — a small ⚡ in the workspace/branch bar. Invisible numbers until you hover; the
+        card shows the <b>latest turn's</b> full breakdown (tokens by category + estimated cost,
+        like the Artificial Analysis tooltip). Click could pin the card or jump to the panel (E).
+        Built on the same <code>threadHeaderAction</code> slot as A — the plugin just renders an
+        icon instead of a chip.
+      </div>
+      <div class="win">
+        <div class="ctxbar">
+          <span class="bi">🗂 patryk-workflow</span>
+          <span class="bi">⎇ docs/capture-inbox</span>
+          <span class="bi">＋</span>
+          <span class="right">
+            <span class="anchor">
+              <span class="stat-icon">⚡</span>
+              <div class="popcard">
+                <div class="pt">Turn 3 · 1m 25s</div>
+                <div class="ps">claude-sonnet-4-5 · 8.4 tok/s avg · ~$0.14 est.</div>
+                <div class="stackbar">
+                  <span class="seg in" style="width: 34%"></span
+                  ><span class="seg cached" style="width: 44%"></span
+                  ><span class="seg reason" style="width: 9%"></span
+                  ><span class="seg out" style="width: 13%"></span>
+                </div>
+                <div class="kv">
+                  <span><span class="sw in"></span>Input</span><b>3,212</b>
+                </div>
+                <div class="kv">
+                  <span><span class="sw cached"></span>Cached input</span><b>2,804</b>
+                </div>
+                <div class="kv">
+                  <span><span class="sw reason"></span>Reasoning</span><b>87</b>
+                </div>
+                <div class="kv">
+                  <span><span class="sw out"></span>Output</span><b>214</b>
+                </div>
+                <div class="pf">
+                  session 12.5k in · 1.7k out · ~$0.93 est.<br />
+                  <span class="warn"
+                    >cost estimated from price table — provider reports tokens only</span
+                  >
+                </div>
+              </div>
+            </span>
+            <span class="full-access">Full Access ▾</span>
+            <span class="iconbtn">◐</span>
+          </span>
+        </div>
+        <div class="tl" style="padding-bottom: 148px">
+          <div class="urow">
+            <div class="bubble">Rotate the refresh token before it expires</div>
+          </div>
+          <div class="arow">
+            <div class="text"><p>Done — rotated pre-emptively, retry path tested…</p></div>
+          </div>
+          <div class="turn-head"><span>Worked for 1m 25s</span><span class="rule"></span></div>
+        </div>
+      </div>
+      <div class="legend">
+        On the real page the card is hidden until you hover the ⚡ (or click to pin). Also possible
+        as a chip+popover hybrid: A's always-visible numbers, F's card on hover.
+      </div>
+    </div>
+
+    <!-- ============ combo ============ -->
+    <div class="variant">
+      <div class="vhead">
+        <div class="badge">★</div>
+        <div class="vname">Recommended: A/F + B + E together</div>
+        <span class="pill always">always-visible live chip</span
+        ><span class="pill hover">hover for per-message</span
+        ><span class="pill demand">panel for history</span>
+      </div>
+      <div class="vnote">
+        All supported slots, no DOM hacks: the header chip tracks the running turn live, hover any
+        reply for a per-turn jump into the panel.
+      </div>
+      <div class="win">
+        <div class="thread-head">
+          <span class="thread-title">Fix auth refresh race</span>
+          <div class="head-actions">
+            <span class="chip live"
+              ><span class="live-dot"></span><b>0m 41s</b><span class="sep">·</span>96 out<span
+                class="sep"
+                >·</span
+              ><b>~9.1 tok/s</b></span
+            >
+            <span class="iconbtn line">⎇</span><span class="iconbtn line">⧉</span
+            ><span class="iconbtn">✕</span>
+          </div>
+        </div>
+        <div class="split">
+          <div class="main">
+            <div class="tl" style="padding-top: 22px">
+              <div class="arow msgwrap force-hover">
+                <div class="msgactions">
+                  <span class="iconbtn">⧉</span><span class="iconbtn">＋</span
+                  ><span class="iconbtn">↩</span><span class="iconbtn hot">⚡</span>
+                </div>
+                <div class="text"><p>Done — rotated pre-emptively, retry path tested…</p></div>
+              </div>
+              <div class="turn-head"><span>Worked for 1m 25s</span><span class="rule"></span></div>
+              <div class="urow"><div class="bubble">Now add a regression test</div></div>
+              <div class="arow">
+                <div class="text"><p>Running…</p></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-tabs">
+              <span class="ptab on">⚡ Turn stats</span><span class="ptab">Files</span>
+            </div>
+            <div class="legendrow">
+              <span class="li"><span class="sw in"></span>input</span>
+              <span class="li"><span class="sw cached"></span>cached</span>
+              <span class="li"><span class="sw reason"></span>reasoning</span>
+              <span class="li"><span class="sw out"></span>output</span>
+            </div>
+            <div class="ptable">
+              <div class="ptrow sel">
+                <span class="st run"></span><span class="t">turn 3 · live</span><span>0m 41s</span
+                ><span class="m">96 out · ~9.1 t/s</span>
+              </div>
+              <div class="ptrow">
+                <span class="st ok"></span><span class="t">turn 2</span><span>1m 25s</span
+                ><span class="m">214 out · 8.4 t/s</span>
+              </div>
+              <div class="ptrow">
+                <span class="st ok"></span><span class="t">turn 1</span><span>48s</span
+                ><span class="m">402 out · 9.7 t/s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

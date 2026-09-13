@@ -6,6 +6,10 @@
     {
       "name": "muse-code",
       "source": "./plugins/muse-code"
+    },
+    {
+      "name": "turn-stats",
+      "source": "./plugins/turn-stats"
     }
   ]
 }

@@ -5,6 +5,7 @@ BB plugins by Patryk Zoltowski.
 | Plugin | Status | What it does |
 | --- | --- | --- |
 | [muse-acp](plugins/muse-code) | scaffold | Registers Muse Code as a bb agent provider through the `muse-acp` adapter. |
+| [turn-stats](plugins/turn-stats) | in development | Per-turn timing, token breakdown (input / cached / reasoning / output), average tok/s, and estimated cost — header icon card, message action, history panel. |
 
 ## Layout
 

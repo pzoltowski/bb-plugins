@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #16181c;
+    --card: #1f2126;
+    --border: #2c2f36;
+    --fg: #e2e4e9;
+    --muted: #9aa0ab;
+    --input: #8a6fd8;
+    --cached: #4a8f6d;
+    --reason: #d9a04b;
+    --output: #7b9bff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 12px/1.4 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+    padding: 28px;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    max-width: 1200px;
+  }
+  .variant-label {
+    font: 600 10px/1 ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 12px;
+    width: 240px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+  }
+  /* shared body: bar + kv + footer — identical in every variant */
+  .bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 9px; }
+  .bar i { display: block; }
+  .kv { margin-top: 8px; font-size: 10px; color: var(--muted); }
+  .kv .r { display: flex; justify-content: space-between; padding: 1px 0; }
+  .kv .v { color: var(--fg); }
+  .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+  .foot {
+    margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--border);
+    font-size: 9.5px; color: var(--muted); line-height: 1.5;
+  }
+  .foot .fine { opacity: 0.75; }
+  /* header fragments */
+  .h-title { font-size: 11px; font-weight: 600; }
+  .h-meta { font-size: 10px; color: var(--muted); }
+  .h-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .accent { color: #b7a4ee; }
+  .dim { opacity: 0.75; }
+</style>
+</head>
+<body>
+<div class="grid" id="grid"></div>
+
+<script>
+const BODY = `
+  <div class="bar">
+    <i style="width:52%;background:var(--input)"></i>
+    <i style="width:44%;background:var(--cached)"></i>
+    <i style="width:2%;background:var(--reason)"></i>
+    <i style="width:2.5%;background:var(--output)"></i>
+  </div>
+  <div class="kv mono">
+    <div class="r"><span><i class="sw" style="background:var(--input)"></i>Input</span><span class="v">31,949</span></div>
+    <div class="r"><span><i class="sw" style="background:var(--cached)"></i>Cached input</span><span class="v">27,392</span></div>
+    <div class="r"><span><i class="sw" style="background:var(--reason)"></i>Reasoning</span><span class="v">165</span></div>
+    <div class="r"><span><i class="sw" style="background:var(--output)"></i>Output</span><span class="v">1,582</span></div>
+  </div>
+  <div class="foot mono">session 174.1k in · 1.6k out · ~$0.06 est.<div class="fine">cost estimated from price table</div></div>`;
+
+const variants = [
+  {
+    name: "V1 — current",
+    head: `
+      <div class="h-title">Turn 1 · 40s</div>
+      <div class="h-meta mono">gpt-5.6-luna · 39.7 tok/s avg · ~$0.06 est.</div>`,
+  },
+  {
+    name: "V2 — your suggestion",
+    head: `
+      <div class="h-row"><span class="h-title">Turn 1</span><span class="h-title mono">40s</span></div>
+      <div class="h-meta mono">gpt-5.6-luna</div>
+      <div class="h-meta mono">39.7 tok/s avg · ~$0.06 est.</div>`,
+  },
+  {
+    name: "V3 — model on row 1",
+    head: `
+      <div class="h-row"><span class="h-title">Turn 1 · <span class="dim">gpt-5.6-luna</span></span><span class="h-title mono">40s</span></div>
+      <div class="h-meta mono">39.7 tok/s avg · ~$0.06 est.</div>`,
+  },
+  {
+    name: "V4 — duration emphasized",
+    head: `
+      <div class="h-row">
+        <span class="h-meta mono" style="font-size:10.5px">Turn 1 · gpt-5.6-luna</span>
+        <span class="mono" style="font-size:13px;font-weight:600">40s</span>
+      </div>
+      <div class="h-meta mono" style="margin-top:2px">39.7 tok/s avg · ~$0.06 est.</div>`,
+  },
+  {
+    name: "V5 — model tinted",
+    head: `
+      <div class="h-row"><span class="h-title">Turn 1</span><span class="h-title mono">40s</span></div>
+      <div class="h-meta mono accent">gpt-5.6-luna</div>
+      <div class="h-meta mono">39.7 tok/s avg · ~$0.06 est.</div>`,
+  },
+  {
+    name: "V6 — metric pair, right-aligned",
+    head: `
+      <div class="h-row">
+        <span class="h-title">Turn 1</span>
+        <span class="h-meta mono">40s · 39.7 tok/s avg</span>
+      </div>
+      <div class="h-row" style="margin-top:2px">
+        <span class="h-meta mono">gpt-5.6-luna</span>
+        <span class="h-meta mono">~$0.06 est.</span>
+      </div>`,
+  },
+  {
+    name: "V7 — stat trio under title",
+    head: `
+      <div class="h-row"><span class="h-title">Turn 1 · gpt-5.6-luna</span></div>
+      <div class="h-meta mono" style="margin-top:2px;letter-spacing:-0.01em">40s <span class="dim">·</span> 39.7 tok/s avg <span class="dim">·</span> ~$0.06 est.</div>`,
+  },
+  {
+    name: "V8 — big duration, quiet model",
+    head: `
+      <div class="h-row" style="align-items:flex-end">
+        <span>
+          <span class="h-title">Turn 1</span>
+          <span class="h-meta mono" style="display:block;margin-top:2px">gpt-5.6-luna</span>
+        </span>
+        <span class="mono" style="font-size:16px;font-weight:650;line-height:1">40s</span>
+      </div>
+      <div class="h-meta mono" style="margin-top:3px">39.7 tok/s avg · ~$0.06 est.</div>`,
+  },
+];
+
+const grid = document.getElementById("grid");
+for (const v of variants) {
+  const cell = document.createElement("div");
+  cell.innerHTML = `<div class="variant-label">${v.name}</div><div class="card">${v.head}${BODY}</div>`;
+  grid.appendChild(cell);
+}
+</script>
+</body>
+</html>
