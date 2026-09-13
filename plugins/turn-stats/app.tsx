@@ -65,6 +65,17 @@ function fmtCost(usd: number | null): string {
   return usd < 0.005 ? "<$0.01" : `$${usd.toFixed(2)}`;
 }
 
+function fmtAcu(acu: number): string {
+  return acu < 0.01 ? "<0.01 ACU" : `${acu.toFixed(2)} ACU`;
+}
+
+/** Short uppercase source tag for the totals row, or null for bb-native. */
+function sourceTag(source: ThreadStats["usageSource"]): string | null {
+  if (source === "opencode-local") return "VIA OPENCODE";
+  if (source === "devin-acp-tap") return "VIA DEVIN TAP";
+  return null;
+}
+
 function avgTps(turn: TurnStatResult, now: number): number | null {
   if (turn.outputTokens === null) return null;
   const secs = ((turn.endedAt ?? now) - turn.startedAt) / 1000;
@@ -367,6 +378,10 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
               <MoneyIcon /> {fmtCost(cost.usd)}
               {cost.estimated ? " est." : ""}
             </>
+          ) : turn.acuCost !== null ? (
+            <>
+              <MoneyIcon /> {fmtAcu(turn.acuCost)}
+            </>
           ) : null}
         </span>
         <span className="inline-flex items-center gap-1">
@@ -403,6 +418,14 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
               </div>
             ))}
           </div>
+          {turn.ttftMs !== null ? (
+            <div
+              className="mt-1 font-mono text-muted-foreground"
+              style={{ fontSize: 10 }}
+            >
+              ttft {(turn.ttftMs / 1000).toFixed(1)}s · reported by provider
+            </div>
+          ) : null}
         </>
       ) : (
         <div
@@ -431,7 +454,7 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
           <>
             <div className="flex items-baseline justify-between">
               <span style={{ fontSize: 8.5, letterSpacing: "0.06em", opacity: 0.6 }}>
-                TOTAL{stats.usageSource === "opencode-local" ? " · VIA OPENCODE" : ""}
+                TOTAL{sourceTag(stats.usageSource) !== null ? ` · ${sourceTag(stats.usageSource)}` : ""}
               </span>
               {sessionCost(stats)?.estimated === true ? (
                 <Tooltip.Provider delayDuration={150}>
@@ -606,6 +629,10 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
       {stats.usageSource === "opencode-local" ? (
         <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-[10.5px] text-muted-foreground">
           Tokens and cost read from OpenCode's local session store — provider-reported, not estimated.
+        </div>
+      ) : stats.usageSource === "devin-acp-tap" ? (
+        <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-[10.5px] text-muted-foreground">
+          Tokens and speed tapped from devin acp's wire — provider-reported, not estimated.
         </div>
       ) : stats.turns.length > 0 &&
         stats.turns.every((t) => t.usageCalls === 0) ? (

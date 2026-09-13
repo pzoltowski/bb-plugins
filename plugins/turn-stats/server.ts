@@ -8,7 +8,12 @@
 
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import {
+  applyDevinUsage,
   applyOpenCodeUsage,
   computeSessionStats,
   extractProviderThreadId,
@@ -21,6 +26,14 @@ import {
   fetchSessionMessages,
   type OpenCodeInstall,
 } from "./src/opencode.ts";
+import {
+  attributeDevinTap,
+  DEVIN_TAP_PROVIDER_ID,
+  devinTapDir,
+  devinTapPath,
+  readDevinTap,
+} from "./src/devin.ts";
+import { ACP_TAP_FILENAME, ACP_TAP_SOURCE } from "./src/acp-tap-source.ts";
 
 export const REALTIME_CHANNEL = "turn-stats";
 export const PANEL_ACTION_ID = "turn-stats";
@@ -68,7 +81,9 @@ const turnStatSchema = z.object({
   cacheWriteTokens: z.number().nullable(),
   costUsd: z.number().nullable(),
   decodeTokPerSec: z.number().nullable(),
-  usageSource: z.enum(["bb-events", "opencode-local"]).nullable(),
+  ttftMs: z.number().nullable(),
+  acuCost: z.number().nullable(),
+  usageSource: z.enum(["bb-events", "opencode-local", "devin-acp-tap"]).nullable(),
   contextUsedTokens: z.number().nullable(),
   contextWindowTokens: z.number().nullable(),
 });
@@ -84,7 +99,7 @@ const threadStatsSchema = z.object({
   totals: tokenTotalsSchema.nullable(),
   estimatedCostUsd: z.number().nullable(),
   costUsd: z.number().nullable(),
-  usageSource: z.enum(["bb-events", "opencode-local", "none"]),
+  usageSource: z.enum(["bb-events", "opencode-local", "devin-acp-tap", "none"]),
   contextUsedTokens: z.number().nullable(),
   contextWindowTokens: z.number().nullable(),
   turns: z.array(turnStatSchema),
@@ -140,7 +155,86 @@ export default async function plugin(bb: BbPluginApi) {
       options: ["auto", "off"],
       default: "auto",
     },
+    devinTap: {
+      type: "select",
+      label: "Devin stats tap",
+      description:
+        "Registers a 'Devin (stats tap)' provider that proxies devin acp and records the per-turn usage it already emits (tokens, tok/s, TTFT). Threads must be started on that provider; builtin acp-devin stays timing + context only.",
+      options: ["on", "off"],
+      default: "on",
+    },
   });
+
+  // The tap is a plain Node script the ACP bridge spawns in place of
+  // `devin acp`. Rewritten on every plugin start so upgrades self-heal;
+  // it lives next to its JSONL output under the plugin's bb dir.
+  const tapDir = devinTapDir();
+  const shimPath = join(homedir(), ".bb", "plugins", "turn-stats", ACP_TAP_FILENAME);
+  function writeTapShim(): void {
+    try {
+      mkdirSync(tapDir, { recursive: true });
+      writeFileSync(shimPath, ACP_TAP_SOURCE, { mode: 0o755 });
+    } catch (error) {
+      bb.log.warn(`turn-stats: could not write acp tap shim: ${errorText(error)}`);
+    }
+  }
+
+  function resolveDevinCommand(): string {
+    const candidates = [
+      join(homedir(), ".local", "bin", "devin"),
+      "/usr/local/bin/devin",
+      "/opt/homebrew/bin/devin",
+    ];
+    for (const c of candidates) if (existsSync(c)) return `${c} acp`;
+    try {
+      const found = execFileSync("which", ["devin"], { encoding: "utf8" }).trim();
+      if (found) return `${found} acp`;
+    } catch {}
+    return "devin acp";
+  }
+
+  const prefsNow = await settings.get().catch(() => null);
+  if (prefsNow?.devinTap !== "off") {
+    writeTapShim();
+    bb.providers.register({
+      id: DEVIN_TAP_PROVIDER_ID,
+      displayName: "Devin (stats tap)",
+      family: "acp",
+      strings: {
+        signInHint: "Sign in to Devin on the machine, then reload.",
+        expiredHint: "Your Devin session expired. Sign in on the machine, then reload.",
+        installUrl: "https://devin.ai",
+      },
+      experimental_visibility: "always",
+      models: { scope: "host" },
+      maintenance: { health: true, usage: false, installation: false },
+      capabilities: {
+        supportsServiceTier: true,
+        supportsNativeUserQuestion: false,
+        supportsManualCompaction: false,
+        supportsThreadArchive: false,
+        supportsThreadRename: false,
+        fork: "none",
+        permissionModes: ["accept-edits", "full"],
+        reasoningLevels: ["low", "medium", "high", "xhigh", "max"],
+      },
+      composerActions: [],
+      experimental_bridgeOptions: {
+        acpLaunchSpec: {
+          displayName: "Devin",
+          // ELECTRON_RUN_AS_NODE makes the bb binary (process.execPath in
+          // this runtime) execute the shim as plain Node — no PATH lookup.
+          command: process.execPath,
+          args: [shimPath],
+          env: {
+            ELECTRON_RUN_AS_NODE: "1",
+            TAP_SPAWN: resolveDevinCommand(),
+            TAP_DIR: tapDir,
+          } as Record<string, string>,
+        },
+      },
+    });
+  }
 
   // threadId → watch expiry. Any getThreadStats/watchThread call refreshes it;
   // the tailer only polls threads with a live watcher.
@@ -227,6 +321,19 @@ export default async function plugin(bb: BbPluginApi) {
     return `oc:${data.messages.length}:${last?.createdAt ?? 0}`;
   }
 
+  function mergeDevin(session: SessionStats, rows: EventRow[]): string {
+    if (session.usageSource !== "none") return "";
+    const providerThreadId = extractProviderThreadId(rows);
+    if (providerThreadId === null) return "";
+    if (!existsSync(devinTapPath(providerThreadId))) return "";
+    const records = readDevinTap(providerThreadId);
+    if (records === null || records.length === 0) return "";
+    const perTurn = attributeDevinTap(records, session.turns);
+    if (!applyDevinUsage(session, perTurn)) return "";
+    const last = records[records.length - 1];
+    return `dv:${records.length}:${last?.at ?? 0}`;
+  }
+
   async function compute(
     threadId: string,
     signal?: AbortSignal,
@@ -238,7 +345,8 @@ export default async function plugin(bb: BbPluginApi) {
     const session = computeSessionStats(rows);
     if (session.startedAt === null) session.startedAt = thread.createdAt;
     const ocTag = await mergeOpenCode(session, rows);
-    const signature = `${rows.length}:${rows[rows.length - 1]?.seq ?? 0}:${ocTag}`;
+    const dvTag = mergeDevin(session, rows);
+    const signature = `${rows.length}:${rows[rows.length - 1]?.seq ?? 0}:${ocTag}:${dvTag}`;
     return { stats: toResult(thread, session), signature };
   }
 

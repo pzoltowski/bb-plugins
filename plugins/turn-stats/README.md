@@ -21,6 +21,7 @@ Configurable in Tools → Turn Stats (or `bb plugin config turn-stats`):
 | `chip` | `stats` / `icon` | `stats` — the header chip shows `40s · 39.7 tok/s · $0.16` inline; `icon` renders just the chart glyph (hover still opens the card, click opens the panel) |
 | `placement` | `header` / `composer` / `header + composer` | `header` — `composer` shows the same chip as a slim banner above the composer instead |
 | `opencodeFallback` | `auto` / `off` | `auto` — for OpenCode ACP threads, read real per-turn tokens/cost/decode-speed from OpenCode's local session store |
+| `devinTap` | `on` / `off` | `on` — registers the "Devin (stats tap)" provider, an acp-tap shim that records the per-turn usage `devin acp` already emits |
 
 Note: there is no BB slot inside the composer's own footer row (where the
 permission picker and context meter live) — `composer` places a banner *above*
@@ -68,6 +69,61 @@ Provider-native `tokenUsage` events always win when present. Missing OpenCode,
 a locked/changed DB, or a session not yet flushed degrade silently to the
 usual no-usage state. Disable via `opencodeFallback: off`.
 
+### Devin stats tap
+
+`devin acp` already emits everything needed — BB's generic ACP bridge just
+drops it. On a live session we verified:
+
+- `session/prompt` → `result.usage.{inputTokens, outputTokens, totalTokens}`
+  (the draft end-turn usage shape);
+- `usage_update._meta` → `cognition.ai/inputTokens` / `outputTokens`;
+- `_cognition.ai/agent_stopped` → `inputTokens`, `outputTokens`, `ttftMs`,
+  `tokensPerSec`, `totalTimeMs`, `modelLabel`, `toolCalls`;
+- `_cognition.ai/turn_stats` → Response Statistics incl. cached input;
+- `_cognition.ai/billingInformation` → ACU cost, when billed.
+
+The plugin registers a second provider, **Devin (stats tap)**, whose launch
+spec runs `~/.bb/plugins/turn-stats/acp-tap.mjs` — a ~100-line stdio
+passthrough that spawns the real `devin acp`, forwards traffic byte-for-byte,
+and tees the messages above into `acp-tap/<sessionId>.jsonl`. The plugin
+reads that file (sessionId = `providerThreadId`) and attributes records to
+turns by timestamp. This yields real per-turn input/output/cached tokens,
+provider-measured **decode tok/s**, **TTFT**, and ACU cost when reported.
+
+Trade-offs, honestly:
+
+- Threads must be started on the tap provider — the builtin `acp-devin`
+  stays timing + context only. Sessions launched there produce no tap file.
+- It is a private Cognition extension: renamed/removed fields degrade to
+  context-only, never wrong data. The shim forwards bytes regardless of
+  parsing, so the pipe itself can't break on payload drift.
+- The tap file only exists where the bridge spawned it — local-machine
+  threads. A remote host writes its JSONL on the remote, which this server
+  can't read; those threads show timing only.
+- Disable via `devinTap: off` (stops registering the provider; existing tap
+  data stays readable).
+
+### Roadmap: the proper fix is upstream
+
+The right long-term fix is in BB's ACP bridge, not here —
+[get-bb/bb#2397](https://github.com/get-bb/bb/issues/2397) tracks it. The
+bridge already receives `session/prompt` results (containing `usage`) and
+`usage_update` `_meta` tokens; it just doesn't map them to
+`thread/tokenUsage/updated` events. A small upstream patch would:
+
+1. map `PromptResponse.usage` → `tokenUsage` events (the draft
+   [end-turn usage RFD](https://agentclientprotocol.com/rfds/end-turn-token-usage)
+   shape — Devin already implements it);
+2. forward `usage_update._meta` token fields into the same event;
+3. optionally surface `_cognition.ai/agent_stopped` stats (ttft/tokensPerSec)
+   and `billingInformation` as cost events.
+
+If/when that lands, native `tokenUsage` events appear and this plugin prefers
+them automatically (native always wins over fallbacks). The tap becomes a
+harmless passthrough you can disable with `devinTap: off` — no migration
+needed. Until then the tap is the only way to get real per-turn Devin stats
+without reimplementing an ACP client.
+
 ## Architecture
 
 ```
@@ -75,9 +131,17 @@ BB thread events ──► server tailer (background.service, 2.5s poll of
                      threads with an open watcher) ──► src/stats.ts
                      reduce ──► realtime publish "turn-stats" ──► app.tsx
                      refetches via getThreadStats RPC
+
+OpenCode threads ──► src/opencode.ts reads ~/.local/share/opencode DB
+                     (or `opencode export`) ──► merged in src/stats.ts
+
+Devin (stats tap) ──► acp-tap.mjs proxies `devin acp` and tees usage
+threads               signals to acp-tap/<sessionId>.jsonl
+                      ──► src/devin.ts reads + attributes ──► stats.ts
 ```
 
-Nothing is persisted; BB already stores the events.
+Nothing is persisted by the plugin itself; BB stores the events, OpenCode
+stores its session DB, and the tap JSONL is a side-channel the shim writes.
 
 ## Development
 

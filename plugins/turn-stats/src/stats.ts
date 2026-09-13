@@ -59,10 +59,14 @@ export interface TurnStat {
   cacheWriteTokens: number | null;
   /** Provider-reported USD cost (not a price-table estimate). */
   costUsd: number | null;
-  /** True decode throughput from per-call timing (OpenCode local data only). */
+  /** True decode throughput from per-call timing (local fallback data only). */
   decodeTokPerSec: number | null;
+  /** Provider-reported time-to-first-token (Devin tap only). */
+  ttftMs: number | null;
+  /** Provider-reported cost in ACUs (Devin tap only — not USD). */
+  acuCost: number | null;
   /** Where this turn's token numbers came from. */
-  usageSource: "bb-events" | "opencode-local" | null;
+  usageSource: "bb-events" | "opencode-local" | "devin-acp-tap" | null;
   /** Latest context-window snapshot inside this turn, when reported. */
   contextUsedTokens: number | null;
   contextWindowTokens: number | null;
@@ -77,7 +81,7 @@ export interface SessionStats {
   /** Provider-reported session cost (OpenCode local data only). */
   costUsd: number | null;
   /** Dominant usage source across the session. */
-  usageSource: "bb-events" | "opencode-local" | "none";
+  usageSource: "bb-events" | "opencode-local" | "devin-acp-tap" | "none";
   /** Latest context-window snapshot for the thread. */
   contextUsedTokens: number | null;
   contextWindowTokens: number | null;
@@ -263,6 +267,8 @@ export function computeSessionStats(rows: readonly EventRow[]): SessionStats {
           cacheWriteTokens: null,
           costUsd: null,
           decodeTokPerSec: null,
+          ttftMs: null,
+          acuCost: null,
           usageSource: null,
           contextUsedTokens: null,
           contextWindowTokens: null,
@@ -312,6 +318,8 @@ export function computeSessionStats(rows: readonly EventRow[]): SessionStats {
           cacheWriteTokens: null,
           costUsd: null,
           decodeTokPerSec: null,
+          ttftMs: null,
+          acuCost: null,
           usageSource: null,
           contextUsedTokens: null,
           contextWindowTokens: null,
@@ -502,5 +510,65 @@ export function applyOpenCodeUsage(
     }
     session.costUsd = known ? cost : null;
   }
+  return true;
+}
+
+/**
+ * Fill per-turn usage from the Devin ACP tap (`_cognition.ai/*` records the
+ * shim teed to disk). Same contract as applyOpenCodeUsage: only turns with
+ * no BB-native usage are touched. agent_stopped stats are provider-measured,
+ * so decodeTokPerSec/ttftMs are real — the turn's whole-duration average
+ * remains separate.
+ */
+export function applyDevinUsage(
+  session: SessionStats,
+  perTurn: ReadonlyMap<number, {
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens: number;
+    tokensPerSec: number | null;
+    ttftMs: number | null;
+    totalTimeMs: number | null;
+    model: string | null;
+    toolCalls: number | null;
+    acuCost: number | null;
+  }>,
+): boolean {
+  let anyApplied = false;
+  for (const [index, usage] of perTurn) {
+    const turn = session.turns[index];
+    if (turn === undefined || turn.usageCalls > 0) continue;
+    if (usage.inputTokens === 0 && usage.outputTokens === 0) continue;
+    turn.usageCalls = 1;
+    turn.inputTokens = usage.inputTokens;
+    turn.outputTokens = usage.outputTokens;
+    turn.cachedInputTokens = usage.cachedInputTokens;
+    turn.decodeTokPerSec = usage.tokensPerSec;
+    turn.ttftMs = usage.ttftMs;
+    turn.acuCost = usage.acuCost;
+    turn.usageSource = "devin-acp-tap";
+    if (turn.model === null && usage.model !== null) turn.model = usage.model;
+    anyApplied = true;
+  }
+  if (!anyApplied) return false;
+  session.usageSource = "devin-acp-tap";
+  // Add devin-sourced turns to whatever BB events already produced.
+  let input = session.totals?.inputTokens ?? 0;
+  let output = session.totals?.outputTokens ?? 0;
+  let cached = session.totals?.cachedInputTokens ?? 0;
+  const reasoning = session.totals?.reasoningOutputTokens ?? 0;
+  for (const turn of session.turns) {
+    if (turn.usageSource !== "devin-acp-tap") continue;
+    input += turn.inputTokens ?? 0;
+    output += turn.outputTokens ?? 0;
+    cached += turn.cachedInputTokens ?? 0;
+  }
+  session.totals = {
+    inputTokens: input,
+    cachedInputTokens: cached,
+    outputTokens: output,
+    reasoningOutputTokens: reasoning,
+    totalTokens: input + cached + output + reasoning,
+  };
   return true;
 }

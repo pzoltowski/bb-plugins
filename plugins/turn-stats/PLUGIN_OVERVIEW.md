@@ -12,9 +12,14 @@ estimated per-turn and session cost, plus when the session started and when it
 was last active.
 
 Numbers come from bb's normalized thread events, so they work across providers.
-Throughput is labeled as an average over the whole turn, and cost is estimated
-from a bundled model price table — the plugin never claims decode speed or
-provider-billed dollars it cannot see.
+For ACP agents that don't report usage, two opt-in fallbacks recover real data:
+OpenCode threads read its local session store (true decode tok/s, real USD
+cost), and a bundled "Devin (stats tap)" provider proxies `devin acp` to capture
+the per-turn tokens, provider-measured tok/s, and TTFT it already emits.
+Throughput is labeled as an average over the whole turn unless the provider
+measured decode directly, and cost is estimated from a bundled model price
+table — the plugin never claims decode speed or provider-billed dollars it
+cannot see.
 
 Useful for comparing prompting styles: how much context each turn re-reads,
 how much of it was cached, and which turns were the expensive ones.
