@@ -47,7 +47,7 @@ export async function probeLocal(command = "muse-acp"): Promise<Probe> {
 
   try {
     const { stdout } = await run(base.binaryPath, ["--version"]);
-    // `muse-acp 0.2.5` -> `0.2.5`
+    // `muse-acp 0.3.0` -> `0.3.0`
     base.version = stdout.trim().split(/\s+/).pop() ?? null;
   } catch (err) {
     return { ...base, error: `Found ${base.binaryPath} but \`--version\` failed: ${(err as Error).message}` };

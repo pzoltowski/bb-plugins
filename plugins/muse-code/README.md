@@ -22,7 +22,7 @@ bb  ──ACP──▶  muse-acp  ──MSP──▶  Muse Code
 independent, dependency-free Rust bridge by Brokk.ai, Apache-2.0. This plugin
 does not vendor or rebuild it — `bb muse-code install` downloads the release
 the project publishes and checks it against the SHA-256 published beside it.
-Tested against **v0.2.5**.
+Tested against **v0.3.0**.
 
 ## What works
 
@@ -36,14 +36,14 @@ Tested against **v0.2.5**.
 | Muse skills | yes | Arrive as ACP commands in the `/` typeahead |
 | Images in prompts | yes | Text, images, and embedded context |
 | Subscription quota | no | Muse exposes no quota endpoint, so bb's usage panel omits it |
-| Thread fork | no | The adapter advertises no `session/fork` |
+| Thread fork | yes (tip) | The adapter advertises `session/fork` since v0.3.0 |
 | Thread archive / rename | no | Not implemented by the adapter |
 | In-app Install button | no | bb offers one only for agents in its built-in dialect list; Muse is not in it. Use `bb muse-code install` |
 
 ## Install
 
 ```sh
-bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-code/:^0.1.0 --plugin muse-code
+bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:muse-code/:^0.2.0 --plugin muse-code
 bb muse-code install
 ```
 
@@ -73,13 +73,13 @@ curl -fsSL https://api.meta.ai/muse-launcher.sh | sh   # then: muse
 
 ## What the adapter advertises
 
-Read from muse-acp v0.2.5, `src/main.rs` (`V1_INIT` / `V2_INIT`) and
+Read from muse-acp v0.3.0, `src/main.rs` (`V1_INIT` / `V2_INIT`) and
 `src/acp.rs` (`config_options`):
 
 | | |
 | --- | --- |
 | Auth | `authMethods: []` — Muse Code signs in out of band through the `muse` CLI |
-| Sessions | `loadSession: true`; capabilities `list`, `resume`, `close`; no fork |
+| Sessions | `loadSession: true`; capabilities `list`, `resume`, `close`, `fork` |
 | Prompt | text, image, embedded context; no audio |
 | Session mode | `ask`, `auto`, `deny` |
 | Reasoning effort | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `ultra` |

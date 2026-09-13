@@ -8,10 +8,10 @@
 // here replaces all of that with what the adapter actually advertises, and
 // adds `bb muse-code install` so nobody has to go find the binary first.
 //
-// Capability facts read from muse-acp v0.2.5, src/main.rs (V1_INIT/V2_INIT)
+// Capability facts read from muse-acp v0.3.0, src/main.rs (V1_INIT/V2_INIT)
 // and src/acp.rs (config_options):
 //   authMethods:  []                 — Muse signs in out of band, via `muse`
-//   loadSession:  true               — list/resume/close; no session/fork
+//   loadSession:  true               — list/resume/close/fork (fork since v0.3.0)
 //   prompt:       text, image, embeddedContext
 //   session mode: ask | auto | deny
 //   reasoning:    none | minimal | low | medium | high | xhigh | ultra
@@ -71,8 +71,9 @@ export default async function plugin(bb: BbPluginApi) {
       supportsManualCompaction: false,
       supportsThreadArchive: false,
       supportsThreadRename: false,
-      // sessionCapabilities advertises list/resume/close, no fork.
-      fork: "none",
+      // sessionCapabilities advertises list/resume/close/fork — ACP fork
+      // clones at the tip only, no checkpoint rewind.
+      fork: "tip",
       permissionModes: ["accept-edits", "full"],
       // Muse's seven efforts minus `minimal`, which bb's vocabulary lacks.
       reasoningLevels: ["none", "low", "medium", "high", "xhigh", "ultra"],
