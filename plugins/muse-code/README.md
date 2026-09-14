@@ -15,14 +15,23 @@ Muse Code does not speak bb's protocol. It speaks its own Muse Session
 Protocol (MSP), so a translator sits between them:
 
 ```
-bb  ──ACP──▶  muse-acp  ──MSP──▶  Muse Code
+bb  ──ACP──▶  acp-tap (stdio shim)  ──ACP──▶  muse-acp  ──MSP──▶  Muse Code
 ```
 
 [`muse-acp`](https://github.com/BrokkAi/muse-acp) is that translator: an
 independent, dependency-free Rust bridge by Brokk.ai, Apache-2.0. This plugin
 does not vendor or rebuild it — `bb muse-code install` downloads the release
 the project publishes and checks it against the SHA-256 published beside it.
-Tested against **v0.3.0**.
+Tested against **v0.3.2**.
+
+Between bb and the adapter sits `acp-tap.mjs`, a ~100-line stdio
+passthrough this plugin writes to `~/.bb/plugins/muse-code/` on startup. It
+proxies the ACP wire unchanged and tees `usage_update` snapshots — Muse's
+cumulative token totals plus the adapter's list-price cost estimate — into
+`~/.bb/acp-tap/<sessionId>.jsonl`. bb's bridge maps the context meter from
+`usage_update` itself; the tap exists so turn-stats (or any consumer) can
+recover the *per-turn* deltas the bridge drops. Removing the shim changes
+nothing about how sessions run — only the side-channel capture stops.
 
 ## What works
 
@@ -73,7 +82,7 @@ curl -fsSL https://api.meta.ai/muse-launcher.sh | sh   # then: muse
 
 ## What the adapter advertises
 
-Read from muse-acp v0.3.0, `src/main.rs` (`V1_INIT` / `V2_INIT`) and
+Read from muse-acp v0.3.2, `src/main.rs` (`V1_INIT` / `V2_INIT`) and
 `src/acp.rs` (`config_options`):
 
 | | |

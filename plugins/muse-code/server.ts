@@ -8,7 +8,7 @@
 // here replaces all of that with what the adapter actually advertises, and
 // adds `bb muse-code install` so nobody has to go find the binary first.
 //
-// Capability facts read from muse-acp v0.3.0, src/main.rs (V1_INIT/V2_INIT)
+// Capability facts read from muse-acp v0.3.2, src/main.rs (V1_INIT/V2_INIT)
 // and src/acp.rs (config_options):
 //   authMethods:  []                 — Muse signs in out of band, via `muse`
 //   loadSession:  true               — list/resume/close/fork (fork since v0.3.0)
@@ -16,12 +16,23 @@
 //   session mode: ask | auto | deny
 //   reasoning:    none | minimal | low | medium | high | xhigh | ultra
 import { type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { museHostContract } from "./contract.js";
 import { runInstall } from "./install.js";
 import { probeLocal } from "./probe.js";
+import { ACP_TAP_FILENAME, ACP_TAP_SOURCE } from "./src/acp-tap-source.js";
 
 const PROVIDER_ID = "acp-muse-code";
 const DISPLAY_NAME = "Muse Code";
+
+// The tap shim sits between bb's bridge and `muse-acp` on stdio: traffic
+// passes through byte-for-byte while usage_update / prompt responses are
+// teed to ~/.bb/acp-tap/<sessionId>.jsonl — where bb-plugin-turn-stats (or
+// any consumer) picks up the per-turn usage the bridge drops.
+const TAP_DIR = join(homedir(), ".bb", "acp-tap");
+const SHIM_PATH = join(homedir(), ".bb", "plugins", "muse-code", ACP_TAP_FILENAME);
 
 export default async function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
@@ -42,6 +53,17 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   const host = bb.hosts.experimental_client({ contract: museHostContract });
+
+  // Written on every plugin start so upgrades self-heal. The provider is
+  // registered unconditionally — if the shim can't be written the launch
+  // fails loudly in the bridge log rather than silently running untapped.
+  try {
+    mkdirSync(TAP_DIR, { recursive: true });
+    mkdirSync(join(SHIM_PATH, ".."), { recursive: true });
+    writeFileSync(SHIM_PATH, ACP_TAP_SOURCE, { mode: 0o755 });
+  } catch (error) {
+    bb.log.warn(`muse-code: could not write acp tap shim: ${error instanceof Error ? error.message : error}`);
+  }
 
   bb.providers.register({
     id: PROVIDER_ID,
@@ -84,9 +106,19 @@ export default async function plugin(bb: BbPluginApi) {
     experimental_bridgeOptions: {
       acpLaunchSpec: {
         displayName: DISPLAY_NAME,
-        command: (await settings.get()).command,
-        args: [],
-        env: {} as Record<string, string>,
+        // ELECTRON_RUN_AS_NODE makes the bb binary (process.execPath in this
+        // runtime) execute the shim as plain Node — no PATH lookup needed.
+        command: process.execPath,
+        args: [SHIM_PATH],
+        env: {
+          ELECTRON_RUN_AS_NODE: "1",
+          // Absolute path preferred — the bridge's spawn env may not share
+          // the PATH that resolved `command` at probe time.
+          TAP_SPAWN:
+            (await probeLocal((await settings.get()).command).catch(() => null))
+              ?.binaryPath ?? (await settings.get()).command,
+          TAP_DIR,
+        } as Record<string, string>,
       },
     },
   });

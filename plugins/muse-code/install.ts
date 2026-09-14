@@ -19,7 +19,7 @@ const run = promisify(execFile);
 
 export const REPO = "BrokkAi/muse-acp";
 /** Used only when GitHub cannot be reached to resolve `releases/latest`. */
-export const FALLBACK_TAG = "v0.3.0";
+export const FALLBACK_TAG = "v0.3.2";
 const MANIFEST = ".muse-acp-install.json";
 
 export interface Target {
