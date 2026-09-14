@@ -248,6 +248,47 @@ function InfoIcon({ size = 9 }: { size?: number }) {
   );
 }
 
+/** Info glyph explaining which limit the context meter uses. */
+function LimitInfo({
+  custom,
+  window,
+}: {
+  custom: boolean;
+  window: number | null;
+}) {
+  return (
+    <Tooltip.Provider delayDuration={150}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <span
+            className="inline-flex items-center opacity-55"
+            style={{ cursor: "help" }}
+            aria-label={
+              custom
+                ? "Metered against your soft limit"
+                : "Metered against the model context window"
+            }
+          >
+            <InfoIcon />
+          </span>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="top"
+            sideOffset={4}
+            className="rounded-md border border-border bg-popover px-2 py-1 font-mono text-muted-foreground shadow-md"
+            style={{ fontSize: 10, maxWidth: 220, zIndex: 70 }}
+          >
+            {custom
+              ? `Metered against your soft limit — the model window is ${window !== null ? window.toLocaleString("en-US") : "unknown"}.`
+              : "Metered against the provider's model window. Set a soft limit in Turn Stats settings for a tighter boundary."}
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  );
+}
+
 function usePrefs() {
   const { values } = useSettings();
   const chip = values?.chip === "icon" ? "icon" : "stats";
@@ -558,9 +599,10 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
         {stats.contextUsedTokens !== null && ctxLimit !== null ? (
           <div className="mt-1 flex items-baseline justify-end gap-1.5">
             <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
-            <span className="opacity-60" style={{ fontSize: 8.5 }}>
-              {prefs.contextLimit !== null ? "soft limit" : "window"}
-            </span>
+            <LimitInfo
+              custom={prefs.contextLimit !== null}
+              window={stats.contextWindowTokens}
+            />
           </div>
         ) : null}
       </div>
@@ -827,9 +869,10 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
           {stats.contextUsedTokens !== null && ctxLimit !== null ? (
             <div className="mt-1 flex items-baseline justify-end gap-1.5">
               <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
-              <span className="opacity-60" style={{ fontSize: 8.5 }}>
-                {prefs.contextLimit !== null ? "soft limit" : "window"}
-              </span>
+              <LimitInfo
+                custom={prefs.contextLimit !== null}
+                window={stats.contextWindowTokens}
+              />
             </div>
           ) : null}
         </div>
@@ -837,9 +880,10 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
         <div className="border-t border-border pt-2 font-mono text-[10.5px] text-muted-foreground">
           <div className="flex items-baseline justify-end gap-1.5">
             <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
-            <span className="opacity-60" style={{ fontSize: 8.5 }}>
-              {prefs.contextLimit !== null ? "soft limit" : "window"}
-            </span>
+            <LimitInfo
+              custom={prefs.contextLimit !== null}
+              window={stats.contextWindowTokens}
+            />
           </div>
         </div>
       ) : null}
