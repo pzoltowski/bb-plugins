@@ -1,14 +1,36 @@
 # Turn Stats
 
 Per-turn statistics for BB threads — like Zed's `agent.show_turn_stats`, but for
-any BB provider. Adds a chart icon to the thread header, a stats action on
-message hover, and a side panel with the full turn history.
+any BB provider. The same stats surface in three places:
 
-![Hover card: per-turn token breakdown, duration, avg tok/s, session totals, and the current-context meter](screenshots/hover-card.png)
+**Composer banner** — always-on strip above the composer: last-turn duration,
+avg tok/s, and a live context meter against your soft limit (or the model's
+context window):
 
-![Composer banner: turn duration, avg tok/s, and the context meter against the soft limit](screenshots/composer-banner.png)
+<img src="screenshots/composer-banner.png" width="700" alt="Composer banner: turn duration, avg tok/s, and the context meter against the soft limit">
 
-![Side panel: per-turn history, session totals, and current context](screenshots/side-panel.png)
+**Hover card** — hover the chart icon in the thread header: the latest turn's
+token breakdown and wire-measured timing, plus session totals and current
+context:
+
+<img src="screenshots/hover-card.png" width="300" alt="Hover card: per-turn token breakdown, session totals, and the current-context meter">
+
+**Side panel** — the full turn history: per-turn rows with historical context,
+session totals, and the same current-context meter:
+
+<img src="screenshots/side-panel.png" width="520" alt="Side panel: per-turn history, session totals, and current context">
+
+## Install
+
+```sh
+bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:turn-stats/:^0.2.0 --plugin turn-stats
+```
+
+Once installed it works on its own — open any thread and the chart icon
+appears in the header (hover for the card, click for the panel), the banner
+shows above the composer, and each message's hover bar gets a "Turn stats"
+action. Providers that report usage natively need nothing else; the tap
+sources below extend coverage to providers that don't.
 
 ## Surfaces
 
