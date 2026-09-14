@@ -128,22 +128,25 @@ function ctxTone(pct: number): string {
   return "text-muted-foreground";
 }
 
-/** Mini meter: bar + "34k / 250k · 14%". Fill is against the limit. */
+/** Mini meter: bar + "34k / 250k · 14%". The bar flex-grows to fill the
+ *  space its container gives it; the count stays pinned to the right. */
 function ContextMeter({ used, limit }: { used: number; limit: number }) {
   const pct = limit > 0 ? (used / limit) * 100 : 0;
   const fill = Math.min(Math.max(pct, 0), 100);
   return (
-    <span className={`inline-flex items-center gap-1.5 tabular-nums ${ctxTone(pct)}`}>
+    <span className={`flex w-full items-center gap-2 tabular-nums ${ctxTone(pct)}`}>
       <span
-        className="overflow-hidden rounded-full bg-border"
-        style={{ width: 44, height: 5 }}
+        className="min-w-10 flex-1 overflow-hidden rounded-full bg-border"
+        style={{ height: 5 }}
       >
         <span
           className="block h-full rounded-full bg-current transition-[width] duration-300"
           style={{ width: `${fill}%` }}
         />
       </span>
-      {fmtTok(used)} / {fmtTok(limit)} · {Math.round(pct)}%
+      <span className="shrink-0">
+        {fmtTok(used)} / {fmtTok(limit)} · {Math.round(pct)}%
+      </span>
     </span>
   );
 }
@@ -881,7 +884,7 @@ function TurnStatsComposerBanner() {
       {stats !== null &&
       stats.contextUsedTokens !== null &&
       (prefs.contextLimit ?? stats.contextWindowTokens) !== null ? (
-        <span className="ml-auto font-mono" style={{ fontSize: 10 }}>
+        <span className="ml-auto min-w-0 flex-1 font-mono" style={{ fontSize: 10 }}>
           <ContextMeter
             used={stats.contextUsedTokens}
             limit={(prefs.contextLimit ?? stats.contextWindowTokens)!}
