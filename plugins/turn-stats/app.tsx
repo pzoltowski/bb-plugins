@@ -70,13 +70,6 @@ function fmtAcu(acu: number): string {
 }
 
 /** Short uppercase source tag for the totals row, or null for bb-native. */
-function sourceTag(source: ThreadStats["usageSource"]): string | null {
-  if (source === "opencode-local") return "VIA OPENCODE";
-  if (source === "devin-acp-tap") return "VIA DEVIN TAP";
-  if (source === "muse-acp-tap") return "VIA MUSE TAP";
-  return null;
-}
-
 function avgTps(turn: TurnStatResult, now: number): number | null {
   if (turn.outputTokens === null) return null;
   const secs = ((turn.endedAt ?? now) - turn.startedAt) / 1000;
@@ -248,26 +241,16 @@ function InfoIcon({ size = 9 }: { size?: number }) {
   );
 }
 
-/** Info glyph explaining which limit the context meter uses. */
-function LimitInfo({
-  custom,
-  window,
-}: {
-  custom: boolean;
-  window: number | null;
-}) {
+/** Small ⓘ affordance: hover reveals `text`. Keeps provenance off the line. */
+function InfoTip({ text, ariaLabel }: { text: string; ariaLabel?: string }) {
   return (
     <Tooltip.Provider delayDuration={150}>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <span
-            className="inline-flex items-center opacity-55"
-            style={{ cursor: "help" }}
-            aria-label={
-              custom
-                ? "Metered against your soft limit"
-                : "Metered against the model context window"
-            }
+            className="inline-flex items-center"
+            style={{ opacity: 0.55, cursor: "help" }}
+            aria-label={ariaLabel ?? text}
           >
             <InfoIcon />
           </span>
@@ -279,13 +262,49 @@ function LimitInfo({
             className="rounded-md border border-border bg-popover px-2 py-1 font-mono text-muted-foreground shadow-md"
             style={{ fontSize: 10, maxWidth: 220, zIndex: 70 }}
           >
-            {custom
-              ? `Metered against your soft limit — the model window is ${window !== null ? window.toLocaleString("en-US") : "unknown"}.`
-              : "Metered against the provider's model window. Set a soft limit in Turn Stats settings for a tighter boundary."}
+            {text}
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>
     </Tooltip.Provider>
+  );
+}
+
+/** Info glyph explaining which limit the context meter uses. */
+function LimitInfo({
+  custom,
+  window,
+}: {
+  custom: boolean;
+  window: number | null;
+}) {
+  return (
+    <InfoTip
+      ariaLabel={
+        custom
+          ? "Metered against your soft limit"
+          : "Metered against the model context window"
+      }
+      text={
+        custom
+          ? `Metered against your soft limit — the model window is ${window !== null ? window.toLocaleString("en-US") : "unknown"}.`
+          : "Metered against the provider's model window. Set a soft limit in Turn Stats settings for a tighter boundary."
+      }
+    />
+  );
+}
+
+/** Info glyph explaining where the usage numbers came from. */
+function SourceInfo({ source }: { source: ThreadStats["usageSource"] }) {
+  const text = {
+    "bb-events": "Reported by the provider through bb's normalized events.",
+    "opencode-local": "Read from OpenCode's local session store — provider-reported, not estimated.",
+    "devin-acp-tap": "Tapped from devin acp's wire — provider-reported, not estimated.",
+    "muse-acp-tap": "Tapped from the Muse ACP wire — provider-reported tokens; cost is the adapter's list-price estimate.",
+    none: null,
+  }[source];
+  return text == null ? null : (
+    <InfoTip ariaLabel="Where these numbers come from" text={text} />
   );
 }
 
@@ -527,10 +546,15 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
           ]
             .filter(Boolean)
             .join(" · ")}
-          {" · "}
-          {turn.usageSource === "devin-acp-tap"
-            ? "reported by provider"
-            : "measured on wire"}
+          {" "}
+          <InfoTip
+            ariaLabel="Where the timing comes from"
+            text={
+              turn.usageSource === "devin-acp-tap"
+                ? "Reported by the provider — devin acp emits ttftMs and tokensPerSec on the wire."
+                : "Measured on the ACP wire between bb and the agent — chunk timestamps, never content."
+            }
+          />
         </div>
       ) : null}
       <div
@@ -540,33 +564,17 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
         {stats.totals !== null ? (
           <>
             <div className="flex items-baseline justify-between">
-              <span style={{ fontSize: 8.5, letterSpacing: "0.06em", opacity: 0.6 }}>
-                TOTAL{sourceTag(stats.usageSource) !== null ? ` · ${sourceTag(stats.usageSource)}` : ""}
+              <span
+                className="inline-flex items-center gap-1"
+                style={{ fontSize: 8.5, letterSpacing: "0.06em", opacity: 0.6 }}
+              >
+                SESSION TOTAL <SourceInfo source={stats.usageSource} />
               </span>
               {sessionCost(stats)?.estimated === true ? (
-                <Tooltip.Provider delayDuration={150}>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <span
-                        className="inline-flex items-center"
-                        style={{ opacity: 0.55, cursor: "help" }}
-                        aria-label="Cost estimated from a bundled price table, not provider-billed"
-                      >
-                        <InfoIcon />
-                      </span>
-                    </Tooltip.Trigger>
-                    <Tooltip.Portal>
-                      <Tooltip.Content
-                        side="top"
-                        sideOffset={4}
-                        className="rounded-md border border-border bg-popover px-2 py-1 font-mono text-muted-foreground shadow-md"
-                        style={{ fontSize: 10, maxWidth: 220, zIndex: 70 }}
-                      >
-                        Cost estimated from a bundled model price table — not provider-billed.
-                      </Tooltip.Content>
-                    </Tooltip.Portal>
-                  </Tooltip.Root>
-                </Tooltip.Provider>
+                <InfoTip
+                  ariaLabel="Cost estimated from a bundled price table, not provider-billed"
+                  text="Cost estimated from a bundled model price table — not provider-billed."
+                />
               ) : null}
             </div>
             <div className="flex items-baseline justify-between">
@@ -586,13 +594,26 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
           "session usage unavailable"
         )}
         {stats.contextUsedTokens !== null && ctxLimit !== null ? (
-          <div className="mt-1 flex items-center justify-end gap-1.5">
-            <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
-            <LimitInfo
-              custom={prefs.contextLimit !== null}
-              window={stats.contextWindowTokens}
-            />
-          </div>
+          <>
+            <div
+              className="mt-2 flex items-center border-t border-border pt-1.5"
+              style={{ borderColor: "color-mix(in srgb, var(--border) 60%, transparent)" }}
+            >
+              <span
+                className="inline-flex items-center gap-1"
+                style={{ fontSize: 8.5, letterSpacing: "0.06em", opacity: 0.6 }}
+              >
+                CONTEXT NOW{" "}
+                <LimitInfo
+                  custom={prefs.contextLimit !== null}
+                  window={stats.contextWindowTokens}
+                />
+              </span>
+            </div>
+            <div className="mt-1 flex items-center">
+              <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
+            </div>
+          </>
         ) : null}
       </div>
     </div>
@@ -812,68 +833,55 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
           <div className="text-xs text-muted-foreground">No turns recorded yet.</div>
         ) : null}
       </div>
-      {stats.totals !== null ? (
+      {stats.totals !== null || (stats.contextUsedTokens !== null && ctxLimit !== null) ? (
         <div className="border-t border-border pt-2 font-mono text-[10.5px] text-muted-foreground">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[9px] uppercase tracking-wide opacity-60">Session total</span>
-            {sessionCost(stats)?.estimated === true ? (
-              <Tooltip.Provider delayDuration={150}>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <span
-                      className="inline-flex items-center opacity-55"
-                      style={{ cursor: "help" }}
-                      aria-label="Cost estimated from a bundled price table, not provider-billed"
-                    >
-                      <InfoIcon />
-                    </span>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      side="top"
-                      sideOffset={4}
-                      className="rounded-md border border-border bg-popover px-2 py-1 font-mono text-muted-foreground shadow-md"
-                      style={{ fontSize: 10, maxWidth: 220, zIndex: 70 }}
-                    >
-                      Cost estimated from a bundled model price table — not provider-billed.
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-            ) : null}
-          </div>
-          <span className="inline-flex items-baseline gap-1">
-            <b className="font-medium text-foreground">
-              {fmtTok(stats.totals.inputTokens)} in · {fmtTok(stats.totals.outputTokens)} out
-            </b>
-            {sessionCost(stats) !== null ? (
-              <>
-                {" · "}
-                <MoneyIcon size={9} />{" "}
-                <b className="font-medium text-foreground">{fmtCost(sessionCost(stats)!.usd)}</b>
-                {sessionCost(stats)!.estimated ? " est." : ""}
-              </>
-            ) : null}
-          </span>
-          {stats.contextUsedTokens !== null && ctxLimit !== null ? (
-            <div className="mt-1 flex items-center justify-end gap-1.5">
-              <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
-              <LimitInfo
-                custom={prefs.contextLimit !== null}
-                window={stats.contextWindowTokens}
-              />
-            </div>
+          {stats.totals !== null ? (
+            <>
+              <div className="flex items-baseline justify-between">
+                <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide opacity-60">
+                  Session total <SourceInfo source={stats.usageSource} />
+                </span>
+                {sessionCost(stats)?.estimated === true ? (
+                  <InfoTip
+                    ariaLabel="Cost estimated from a bundled price table, not provider-billed"
+                    text="Cost estimated from a bundled model price table — not provider-billed."
+                  />
+                ) : null}
+              </div>
+              <span className="inline-flex items-baseline gap-1">
+                <b className="font-medium text-foreground">
+                  {fmtTok(stats.totals.inputTokens)} in · {fmtTok(stats.totals.outputTokens)} out
+                </b>
+                {sessionCost(stats) !== null ? (
+                  <>
+                    {" · "}
+                    <MoneyIcon size={9} />{" "}
+                    <b className="font-medium text-foreground">{fmtCost(sessionCost(stats)!.usd)}</b>
+                    {sessionCost(stats)!.estimated ? " est." : ""}
+                  </>
+                ) : null}
+              </span>
+            </>
           ) : null}
-        </div>
-      ) : stats.contextUsedTokens !== null && ctxLimit !== null ? (
-        <div className="border-t border-border pt-2 font-mono text-[10.5px] text-muted-foreground">
-          <div className="flex items-center justify-end gap-1.5">
-            <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
-            <LimitInfo
-              custom={prefs.contextLimit !== null}
-              window={stats.contextWindowTokens}
-            />
-          </div>
+          {stats.contextUsedTokens !== null && ctxLimit !== null ? (
+            <>
+              <div
+                className={`${stats.totals !== null ? "mt-2 border-t pt-1.5" : ""} flex items-center`}
+                style={{ borderColor: "color-mix(in srgb, var(--border) 60%, transparent)" }}
+              >
+                <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide opacity-60">
+                  Context now{" "}
+                  <LimitInfo
+                    custom={prefs.contextLimit !== null}
+                    window={stats.contextWindowTokens}
+                  />
+                </span>
+              </div>
+              <div className="mt-1 flex items-center">
+                <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
+              </div>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
