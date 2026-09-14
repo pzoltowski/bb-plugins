@@ -168,6 +168,12 @@ export default async function plugin(bb: BbPluginApi) {
       options: ["on", "off"],
       default: "on",
     },
+    contextLimit: {
+      type: "string",
+      label: "Context soft limit",
+      description:
+        "Where the smart zone ends for you — the point to compact or start a fresh thread, not the model's full window. Accepts 250000, 250k, or 1m. Leave blank to meter against the provider's window.",
+    },
   });
 
   // The tap is a plain Node script the ACP bridge spawns in place of

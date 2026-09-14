@@ -22,6 +22,7 @@ Configurable in Tools → Turn Stats (or `bb plugin config turn-stats`):
 | `placement` | `header` / `composer` / `header + composer` | `header` — `composer` shows the same chip as a slim banner above the composer instead |
 | `opencodeFallback` | `auto` / `off` | `auto` — for OpenCode ACP threads, read real per-turn tokens/cost/decode-speed from OpenCode's local session store |
 | `devinTap` | `on` / `off` | `on` — registers the "Devin (stats tap)" provider, an acp-tap shim that records the per-turn usage `devin acp` already emits |
+| `contextLimit` | string: `250000`, `250k`, `1m` | blank — a soft limit where the *smart zone* ends for you (inspired by [context-meter](https://github.com/Hazihell/bb-plugin-context-meter)). The composer banner's right side and the card/panel session rows meter context against it: `34k/250k · 14%` with a bar that goes amber ≥75% and red ≥100%. Blank falls back to the provider's model window |
 
 Note: there is no BB slot inside the composer's own footer row (where the
 permission picker and context meter live) — `composer` places a banner *above*
@@ -45,9 +46,12 @@ only for threads a client is watching.
   labeled `est.`. BB exposes plan quota (`usedUsdCents`) but no per-turn $.
 - **Session** — totals from the newest usage event's cumulative `total`
   bucket; start = `thread/started` or thread `createdAt`.
-- **Context** — `ctx used/size` per turn and per session from
-  `thread/contextWindowUsage/updated`; shown for providers that report it
-  (including ACP agents like Devin and OpenCode).
+- **Context** — `context used/limit` per turn and per session from
+  `thread/contextWindowUsage/updated` (and ACP `usage_update` via the tap);
+  shown for providers that report it (including ACP agents like Devin,
+  OpenCode and Muse). The meter fills against `contextLimit` when set, else
+  the provider's model window — absolute thresholds, not a share of the
+  window, since quality degrades well before the window fills.
 
 ### OpenCode local fallback
 

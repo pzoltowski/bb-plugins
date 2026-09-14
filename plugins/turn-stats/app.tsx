@@ -107,7 +107,42 @@ function sessionCost(stats: ThreadStats): { usd: number; estimated: boolean } | 
 }
 
 function fmtCtx(used: number, size: number): string {
-  return `ctx ${fmtTok(used)}/${fmtTok(size)}`;
+  return `context ${fmtTok(used)}/${fmtTok(size)}`;
+}
+
+/** "250000" | "250k" | "1m" → tokens; blank/invalid → null (use the window). */
+function parseContextLimit(raw: string | undefined | null): number | null {
+  if (raw === undefined || raw === null) return null;
+  const m = raw.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)\s*([km])?$/);
+  if (!m) return null;
+  const v = Math.round(
+    parseFloat(m[1]!) * (m[2] === "k" ? 1e3 : m[2] === "m" ? 1e6 : 1),
+  );
+  return v > 0 ? v : null;
+}
+
+/** Degradation thresholds are absolute, not a share of the provider window. */
+function ctxTone(pct: number): string {
+  if (pct >= 100) return "text-destructive";
+  if (pct >= 75) return "text-warning-text";
+  return "text-muted-foreground";
+}
+
+/** Mini meter: thin bar + "34k/250k · 14%". Fill is against the limit. */
+function ContextMeter({ used, limit }: { used: number; limit: number }) {
+  const pct = limit > 0 ? (used / limit) * 100 : 0;
+  const fill = Math.min(Math.max(pct, 0), 100);
+  return (
+    <span className={`inline-flex items-center gap-1.5 tabular-nums ${ctxTone(pct)}`}>
+      <span className="h-1 w-7 overflow-hidden rounded-full bg-border">
+        <span
+          className="block h-full rounded-full bg-current transition-[width] duration-300"
+          style={{ width: `${fill}%` }}
+        />
+      </span>
+      {fmtTok(used)}/{fmtTok(limit)} · {Math.round(pct)}%
+    </span>
+  );
 }
 
 function turnDurationMs(turn: TurnStatResult, now: number): number {
@@ -215,6 +250,9 @@ function usePrefs() {
     chip,
     showHeader: placement !== "composer",
     showComposer: placement === "composer" || placement === "header + composer",
+    contextLimit: parseContextLimit(
+      typeof values?.contextLimit === "string" ? values.contextLimit : undefined,
+    ),
   };
 }
 
@@ -334,6 +372,8 @@ function StatusDot({ status }: { status: TurnStatResult["status"] }) {
 
 /** The hover card shown by the header icon — latest/active turn breakdown. */
 function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
+  const prefs = usePrefs();
+  const ctxLimit = prefs.contextLimit ?? stats.contextWindowTokens;
   const running = stats.turns.find((t) => t.status === "running") ?? null;
   const latest = stats.turns[stats.turns.length - 1] ?? null;
   const turn = running ?? latest;
@@ -427,7 +467,7 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
         >
           {stats.providerId} did not report token usage for this turn.
           {turn.contextUsedTokens !== null && turn.contextWindowTokens !== null
-            ? ` ${fmtCtx(turn.contextUsedTokens, turn.contextWindowTokens)}.`
+            ? ` ${fmtCtx(turn.contextUsedTokens, prefs.contextLimit ?? turn.contextWindowTokens)}.`
             : ""}
         </div>
       )}
@@ -436,7 +476,7 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
           className="mt-1 font-mono text-muted-foreground"
           style={{ fontSize: 10 }}
         >
-          {fmtCtx(turn.contextUsedTokens, turn.contextWindowTokens)}
+          {fmtCtx(turn.contextUsedTokens, prefs.contextLimit ?? turn.contextWindowTokens)}
         </div>
       ) : null}
       {turn.ttftMs !== null || turn.streamMs !== null || turn.tailMs !== null ? (
@@ -509,6 +549,14 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
         ) : (
           "session usage unavailable"
         )}
+        {stats.contextUsedTokens !== null && ctxLimit !== null ? (
+          <div className="mt-1 flex items-baseline justify-end gap-1.5">
+            <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
+            <span className="opacity-60" style={{ fontSize: 8.5 }}>
+              {prefs.contextLimit !== null ? "soft limit" : "window"}
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -598,6 +646,9 @@ function turnForSeq(turns: TurnStatResult[], seq: number): TurnStatResult | null
 
 function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
   const { stats, error, now } = useThreadStats(threadId);
+  const prefs = usePrefs();
+  const ctxLimit =
+    stats !== null ? (prefs.contextLimit ?? stats.contextWindowTokens) : null;
   const focusSeq =
     typeof params === "object" && params !== null && "focusSeq" in params
       ? (params as { focusSeq?: unknown }).focusSeq
@@ -708,13 +759,13 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
                       : ""}
                     {" "}· {fmtTok(turn.reasoningOutputTokens)} think · {fmtTok(turn.outputTokens)} out
                     {turn.contextUsedTokens !== null && turn.contextWindowTokens !== null
-                      ? ` · ${fmtCtx(turn.contextUsedTokens, turn.contextWindowTokens)}`
+                      ? ` · ${fmtCtx(turn.contextUsedTokens, prefs.contextLimit ?? turn.contextWindowTokens)}`
                       : ""}
                   </div>
                 </div>
               ) : turn.contextUsedTokens !== null && turn.contextWindowTokens !== null ? (
                 <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-                  {fmtCtx(turn.contextUsedTokens, turn.contextWindowTokens)}
+                  {fmtCtx(turn.contextUsedTokens, prefs.contextLimit ?? turn.contextWindowTokens)}
                 </div>
               ) : null}
             </div>
@@ -766,17 +817,24 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
                 {sessionCost(stats)!.estimated ? " est." : ""}
               </>
             ) : null}
-            {stats.contextUsedTokens !== null && stats.contextWindowTokens !== null ? (
-              <>
-                {" · "}
-                {fmtCtx(stats.contextUsedTokens, stats.contextWindowTokens)}
-              </>
-            ) : null}
           </span>
+          {stats.contextUsedTokens !== null && ctxLimit !== null ? (
+            <div className="mt-1 flex items-baseline justify-end gap-1.5">
+              <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
+              <span className="opacity-60" style={{ fontSize: 8.5 }}>
+                {prefs.contextLimit !== null ? "soft limit" : "window"}
+              </span>
+            </div>
+          ) : null}
         </div>
-      ) : stats.contextUsedTokens !== null && stats.contextWindowTokens !== null ? (
+      ) : stats.contextUsedTokens !== null && ctxLimit !== null ? (
         <div className="border-t border-border pt-2 font-mono text-[10.5px] text-muted-foreground">
-          {fmtCtx(stats.contextUsedTokens, stats.contextWindowTokens)}
+          <div className="flex items-baseline justify-end gap-1.5">
+            <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
+            <span className="opacity-60" style={{ fontSize: 8.5 }}>
+              {prefs.contextLimit !== null ? "soft limit" : "window"}
+            </span>
+          </div>
         </div>
       ) : null}
     </div>
@@ -817,9 +875,20 @@ function TurnStatsComposerBanner() {
           Turn stats
         </span>
       )}
+      {stats !== null &&
+      stats.contextUsedTokens !== null &&
+      (prefs.contextLimit ?? stats.contextWindowTokens) !== null ? (
+        <span className="ml-auto font-mono" style={{ fontSize: 10 }}>
+          <ContextMeter
+            used={stats.contextUsedTokens}
+            limit={(prefs.contextLimit ?? stats.contextWindowTokens)!}
+          />
+        </span>
+      ) : (
         <span className="ml-auto font-mono text-muted-foreground" style={{ fontSize: 10 }}>
           details →
         </span>
+      )}
       </button>
     </StatsHover>
   );
