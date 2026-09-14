@@ -28,10 +28,13 @@ Between bb and the adapter sits `acp-tap.mjs`, a ~100-line stdio
 passthrough this plugin writes to `~/.bb/plugins/muse-code/` on startup. It
 proxies the ACP wire unchanged and tees `usage_update` snapshots — Muse's
 cumulative token totals plus the adapter's list-price cost estimate — into
-`~/.bb/acp-tap/<sessionId>.jsonl`. bb's bridge maps the context meter from
-`usage_update` itself; the tap exists so turn-stats (or any consumer) can
-recover the *per-turn* deltas the bridge drops. Removing the shim changes
-nothing about how sessions run — only the side-channel capture stops.
+`~/.bb/acp-tap/<sessionId>.jsonl`, along with a `turn_timing` record per
+prompt carrying chunk *timestamps* only (never content), so a reader can
+decompose a turn into TTFT / generation / settle-tail spans. bb's bridge
+maps the context meter from `usage_update` itself; the tap exists so
+turn-stats (or any consumer) can recover the *per-turn* deltas and timing
+the bridge drops. Removing the shim changes nothing about how sessions run —
+only the side-channel capture stops.
 
 ## What works
 
