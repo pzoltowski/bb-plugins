@@ -61,8 +61,13 @@ export interface TurnStat {
   costUsd: number | null;
   /** True decode throughput from per-call timing (local fallback data only). */
   decodeTokPerSec: number | null;
-  /** Provider-reported time-to-first-token (Devin tap only). */
+  /** Time-to-first-token — provider-reported (Devin tap) or wire-measured (Muse tap). */
   ttftMs: number | null;
+  /** Wire-measured generation window: first → last content chunk (Muse tap). */
+  streamMs: number | null;
+  /** Wire-measured settle tail: last chunk → prompt result, i.e. adapter
+   *  wind-down time BB counts as turn time (Muse tap). */
+  tailMs: number | null;
   /** Provider-reported cost in ACUs (Devin tap only — not USD). */
   acuCost: number | null;
   /** Where this turn's token numbers came from. */
@@ -268,6 +273,8 @@ export function computeSessionStats(rows: readonly EventRow[]): SessionStats {
           costUsd: null,
           decodeTokPerSec: null,
           ttftMs: null,
+          streamMs: null,
+          tailMs: null,
           acuCost: null,
           usageSource: null,
           contextUsedTokens: null,
@@ -319,6 +326,8 @@ export function computeSessionStats(rows: readonly EventRow[]): SessionStats {
           costUsd: null,
           decodeTokPerSec: null,
           ttftMs: null,
+          streamMs: null,
+          tailMs: null,
           acuCost: null,
           usageSource: null,
           contextUsedTokens: null,
@@ -628,4 +637,29 @@ export function applyMuseUsage(
   };
   session.estimatedCostUsd = estKnown ? est : null;
   return true;
+}
+
+/**
+ * Fill per-turn TTFT / stream-window / settle-tail from a Muse tap's
+ * turn_timing records. Wire-measured rather than provider-reported, so it
+ * applies to every matched turn — even one that somehow already has usage.
+ */
+export function applyMuseTiming(
+  session: SessionStats,
+  perTurn: ReadonlyMap<number, {
+    ttftMs: number | null;
+    streamMs: number | null;
+    tailMs: number | null;
+  }>,
+): boolean {
+  let anyApplied = false;
+  for (const [index, timing] of perTurn) {
+    const turn = session.turns[index];
+    if (turn === undefined) continue;
+    if (timing.ttftMs !== null) turn.ttftMs = timing.ttftMs;
+    if (timing.streamMs !== null) turn.streamMs = timing.streamMs;
+    if (timing.tailMs !== null) turn.tailMs = timing.tailMs;
+    anyApplied = true;
+  }
+  return anyApplied;
 }

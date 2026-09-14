@@ -419,14 +419,6 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
               </div>
             ))}
           </div>
-          {turn.ttftMs !== null ? (
-            <div
-              className="mt-1 font-mono text-muted-foreground"
-              style={{ fontSize: 10 }}
-            >
-              ttft {(turn.ttftMs / 1000).toFixed(1)}s · reported by provider
-            </div>
-          ) : null}
         </>
       ) : (
         <div
@@ -445,6 +437,24 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
           style={{ fontSize: 10 }}
         >
           {fmtCtx(turn.contextUsedTokens, turn.contextWindowTokens)}
+        </div>
+      ) : null}
+      {turn.ttftMs !== null || turn.streamMs !== null || turn.tailMs !== null ? (
+        <div
+          className="mt-1 font-mono text-muted-foreground"
+          style={{ fontSize: 10 }}
+        >
+          {[
+            turn.ttftMs !== null ? `ttft ${(turn.ttftMs / 1000).toFixed(1)}s` : null,
+            turn.streamMs !== null ? `gen ${(turn.streamMs / 1000).toFixed(1)}s` : null,
+            turn.tailMs !== null ? `settle tail ${(turn.tailMs / 1000).toFixed(1)}s` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          {" · "}
+          {turn.usageSource === "devin-acp-tap"
+            ? "reported by provider"
+            : "measured on wire"}
         </div>
       ) : null}
       <div

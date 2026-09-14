@@ -103,3 +103,94 @@ export function attributeMuseTap(
   }
   return result;
 }
+
+export interface MuseTurnTiming {
+  /** Wire-measured: prompt dispatch → first content chunk. */
+  ttftMs: number | null;
+  /** Wire-measured: first → last chunk — the generation window. */
+  streamMs: number | null;
+  /** Wire-measured: last chunk → prompt result (adapter settle/wind-down). */
+  tailMs: number | null;
+  /** Content chunks observed on the wire. */
+  chunks: number;
+}
+
+interface TimingRec {
+  /** Prompt result arrival — ≈ bb's turn completion instant. */
+  at: number;
+  promptAt: number;
+  firstChunkAt: number | null;
+  lastChunkAt: number | null;
+  chunks: number;
+}
+
+/** Extract turn_timing records (emitted by the shim per prompt result). */
+export function museTurnTimings(
+  records: readonly DevinTapRecord[],
+): TimingRec[] {
+  const out: TimingRec[] = [];
+  for (const r of records) {
+    if (r.kind !== "turn_timing") continue;
+    const promptAt = num(r.data.promptAt);
+    if (promptAt === null) continue;
+    out.push({
+      at: r.at,
+      promptAt,
+      firstChunkAt: num(r.data.firstChunkAt),
+      lastChunkAt: num(r.data.lastChunkAt),
+      chunks: num(r.data.chunks) ?? 0,
+    });
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
+/**
+ * Match each turn_timing to the bb turn it belongs to. A timing's promptAt is
+ * the instant bb's bridge dispatched session/prompt (≈ turn start) and its at
+ * is the instant the result arrived (≈ turn end) — anchor on whichever is
+ * closer, consume-once so a cancelled turn with no result can't skew the rest.
+ */
+export function attributeMuseTimings(
+  records: readonly DevinTapRecord[],
+  turns: readonly { startedAt: number; endedAt: number | null }[],
+): Map<number, MuseTurnTiming> {
+  const SLACK_MS = 30_000;
+  const result = new Map<number, MuseTurnTiming>();
+  const timings = museTurnTimings(records);
+  const sorted = turns
+    .map((t, index) => ({ startedAt: t.startedAt, endedAt: t.endedAt, index }))
+    .sort((a, b) => a.startedAt - b.startedAt);
+  const used = new Set<number>();
+
+  for (const turn of sorted) {
+    let best = -1;
+    let bestScore = SLACK_MS;
+    for (let i = 0; i < timings.length; i++) {
+      if (used.has(i)) continue;
+      const t = timings[i];
+      const dStart = Math.abs(t.promptAt - turn.startedAt);
+      const dEnd =
+        turn.endedAt !== null ? Math.abs(t.at - turn.endedAt) : Infinity;
+      const score = Math.min(dStart, dEnd);
+      if (score <= bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    }
+    if (best < 0) continue;
+    used.add(best);
+    const t = timings[best];
+    result.set(turn.index, {
+      ttftMs:
+        t.firstChunkAt !== null ? Math.max(0, t.firstChunkAt - t.promptAt) : null,
+      streamMs:
+        t.firstChunkAt !== null && t.lastChunkAt !== null
+          ? Math.max(0, t.lastChunkAt - t.firstChunkAt)
+          : null,
+      tailMs:
+        t.lastChunkAt !== null ? Math.max(0, t.at - t.lastChunkAt) : null,
+      chunks: t.chunks,
+    });
+  }
+  return result;
+}

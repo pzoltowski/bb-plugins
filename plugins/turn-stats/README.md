@@ -115,8 +115,17 @@ a per-turn cost estimate.
 
 Honest labeling: Muse cost is marked `est.` — it's the adapter's catalog
 list-price estimate (`billing: false`), better rates than our bundled table
-but still not a billing figure. Muse does not report per-call timing, so no
-`decode` speed or TTFT — `avg` t/s only.
+but still not a billing figure.
+
+The shim also emits a `turn_timing` record per prompt — only chunk
+*timestamps*, never content — which this plugin decomposes into three
+wire-measured spans per turn: **ttft** (prompt → first chunk), **gen**
+(first → last chunk), and **settle tail** (last chunk → result). The tail is
+the interesting one: muse-acp holds the `session/prompt` result open for a
+retraction window after `turn/completed`, which we measured at 11–25s. That
+dead time is what makes a fast answer feel slow — and what inflates `avg`
+t/s — so the card labels these `measured on wire` separately from the
+provider-reported numbers.
 
 ### Roadmap: the proper fix is upstream
 

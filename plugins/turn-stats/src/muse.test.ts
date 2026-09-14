@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { attributeMuseTap, museSnapshots } from "./muse.ts";
-import { applyMuseUsage, computeSessionStats, type EventRow } from "./stats.ts";
+import { attributeMuseTap, attributeMuseTimings, museSnapshots } from "./muse.ts";
+import { applyMuseTiming, applyMuseUsage, computeSessionStats, type EventRow } from "./stats.ts";
 import type { DevinTapRecord } from "./devin.ts";
 
 const T0 = 1_700_000_000_000;
@@ -95,4 +95,70 @@ void test("applyMuseUsage fills usage-less turns and totals, keeps estimate labe
   assert.equal(t.usageSource, "muse-acp-tap");
   assert.equal(session.usageSource, "muse-acp-tap");
   assert.equal(session.totals?.totalTokens, 18_125);
+});
+
+function timing(at: number, promptAt: number, firstChunkAt: number | null, lastChunkAt: number | null, chunks = 12): DevinTapRecord {
+  return { at, kind: "turn_timing", data: { promptAt, firstChunkAt, lastChunkAt, chunks } };
+}
+
+void test("attributeMuseTimings decomposes turns into ttft/stream/tail", () => {
+  const turns = [
+    { startedAt: T0, endedAt: T0 + 30_000 },
+    { startedAt: T0 + 60_000, endedAt: T0 + 80_000 },
+  ];
+  const records = [
+    // turn 1: prompt at +100ms, first chunk +5.6s, last +14s, result +29.9s
+    timing(T0 + 29_900, T0 + 100, T0 + 5_700, T0 + 14_100),
+    // turn 2: prompt +60.1s, first chunk +65.7s, last +75s, result +80s
+    timing(T0 + 80_000, T0 + 60_100, T0 + 65_700, T0 + 75_000),
+  ];
+  const perTurn = attributeMuseTimings(records, turns);
+  const t1 = perTurn.get(0)!;
+  assert.equal(t1.ttftMs, 5_600);
+  assert.equal(t1.streamMs, 8_400);
+  assert.equal(t1.tailMs, 15_800);
+  const t2 = perTurn.get(1)!;
+  assert.equal(t2.ttftMs, 5_600);
+  assert.equal(t2.tailMs, 5_000);
+});
+
+void test("a turn with no result record is skipped without skewing others", () => {
+  const turns = [
+    { startedAt: T0, endedAt: T0 + 5_000 },              // cancelled — no timing
+    { startedAt: T0 + 60_000, endedAt: T0 + 90_000 },
+  ];
+  const records = [timing(T0 + 89_000, T0 + 60_200, T0 + 66_000, T0 + 80_000)];
+  const perTurn = attributeMuseTimings(records, turns);
+  assert.equal(perTurn.has(0), false);
+  assert.equal(perTurn.get(1)?.ttftMs, 5_800);
+});
+
+void test("zero-chunk turns report null timing fields", () => {
+  const turns = [{ startedAt: T0, endedAt: T0 + 3_000 }];
+  const records = [timing(T0 + 3_000, T0 + 50, null, null, 0)];
+  const t = attributeMuseTimings(records, turns).get(0)!;
+  assert.equal(t.ttftMs, null);
+  assert.equal(t.streamMs, null);
+  assert.equal(t.tailMs, null);
+});
+
+void test("applyMuseTiming sets fields even on a turn that already has usage", () => {
+  const rows: EventRow[] = [
+    { id: "1", seq: 1, createdAt: T0, type: "turn/started",
+      scope: { kind: "turn", turnId: "t1" }, data: {} },
+    { id: "2", seq: 2, createdAt: T0 + 5_000, type: "thread/tokenUsage/updated",
+      scope: { kind: "turn", turnId: "t1" },
+      data: { tokenUsage: { last: { inputTokens: 100, cachedInputTokens: 0, outputTokens: 10, reasoningOutputTokens: 0, totalTokens: 110 }, total: { inputTokens: 100, cachedInputTokens: 0, outputTokens: 10, reasoningOutputTokens: 0, totalTokens: 110 }, modelContextWindow: null } } },
+    { id: "3", seq: 3, createdAt: T0 + 30_000, type: "turn/completed",
+      scope: { kind: "turn", turnId: "t1" }, data: { status: "completed" } },
+  ];
+  const session = computeSessionStats(rows);
+  assert.equal(session.turns[0].usageCalls, 1);        // native bb usage present
+  const timings = new Map([[0, { ttftMs: 4_200, streamMs: 8_000, tailMs: 19_000 }]]);
+  assert.ok(applyMuseTiming(session, timings));
+  const t = session.turns[0];
+  assert.equal(t.ttftMs, 4_200);
+  assert.equal(t.streamMs, 8_000);
+  assert.equal(t.tailMs, 19_000);
+  assert.equal(t.usageSource, "bb-events");            // source untouched
 });
