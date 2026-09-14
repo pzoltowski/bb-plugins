@@ -56,8 +56,8 @@ function fmtAgo(ts: number, now: number): string {
 function fmtTok(n: number | null): string {
   if (n === null) return "—";
   if (n < 1_000) return String(Math.round(n));
-  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(1)}m`;
+  if (n < 999_500) return `${Math.round(n / 1_000)}k`;
+  return `${Math.round(n / 1_000_000)}m`;
 }
 
 function fmtCost(usd: number | null): string {
@@ -128,19 +128,22 @@ function ctxTone(pct: number): string {
   return "text-muted-foreground";
 }
 
-/** Mini meter: thin bar + "34k/250k · 14%". Fill is against the limit. */
+/** Mini meter: bar + "34k / 250k · 14%". Fill is against the limit. */
 function ContextMeter({ used, limit }: { used: number; limit: number }) {
   const pct = limit > 0 ? (used / limit) * 100 : 0;
   const fill = Math.min(Math.max(pct, 0), 100);
   return (
     <span className={`inline-flex items-center gap-1.5 tabular-nums ${ctxTone(pct)}`}>
-      <span className="h-1 w-7 overflow-hidden rounded-full bg-border">
+      <span
+        className="overflow-hidden rounded-full bg-border"
+        style={{ width: 44, height: 5 }}
+      >
         <span
           className="block h-full rounded-full bg-current transition-[width] duration-300"
           style={{ width: `${fill}%` }}
         />
       </span>
-      {fmtTok(used)}/{fmtTok(limit)} · {Math.round(pct)}%
+      {fmtTok(used)} / {fmtTok(limit)} · {Math.round(pct)}%
     </span>
   );
 }
