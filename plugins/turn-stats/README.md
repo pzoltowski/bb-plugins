@@ -128,8 +128,8 @@ wire-measured spans per turn: **ttft** (prompt → first chunk), **gen**
 the interesting one: muse-acp holds the `session/prompt` result open for a
 retraction window after `turn/completed`, which we measured at 11–25s. That
 dead time is what makes a fast answer feel slow — and what inflates `avg`
-t/s — so the card labels these `measured on wire` separately from the
-provider-reported numbers.
+t/s — so the card keeps a ⓘ tooltip on the timing line explaining these are
+measured on the wire, separately from provider-reported numbers.
 
 ### Roadmap: the proper fix is upstream
 
