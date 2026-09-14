@@ -4,6 +4,12 @@ Per-turn statistics for BB threads — like Zed's `agent.show_turn_stats`, but f
 any BB provider. Adds a chart icon to the thread header, a stats action on
 message hover, and a side panel with the full turn history.
 
+![Hover card: per-turn token breakdown, duration, avg tok/s, session totals, and the current-context meter](screenshots/hover-card.png)
+
+![Composer banner: turn duration, avg tok/s, and the context meter against the soft limit](screenshots/composer-banner.png)
+
+![Side panel: per-turn history, session totals, and current context](screenshots/side-panel.png)
+
 ## Surfaces
 
 | Surface | Slot | What it shows |
