@@ -513,19 +513,8 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
           style={{ fontSize: 10 }}
         >
           {stats.providerId} did not report token usage for this turn.
-          {turn.contextUsedTokens !== null && turn.contextWindowTokens !== null
-            ? ` ${fmtCtx(turn.contextUsedTokens, prefs.contextLimit ?? turn.contextWindowTokens)}.`
-            : ""}
         </div>
       )}
-      {hasUsage && turn.contextUsedTokens !== null && turn.contextWindowTokens !== null ? (
-        <div
-          className="mt-1 font-mono text-muted-foreground"
-          style={{ fontSize: 10 }}
-        >
-          {fmtCtx(turn.contextUsedTokens, prefs.contextLimit ?? turn.contextWindowTokens)}
-        </div>
-      ) : null}
       {turn.ttftMs !== null || turn.streamMs !== null || turn.tailMs !== null ? (
         <div
           className="mt-1 font-mono text-muted-foreground"
@@ -597,7 +586,7 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
           "session usage unavailable"
         )}
         {stats.contextUsedTokens !== null && ctxLimit !== null ? (
-          <div className="mt-1 flex items-baseline justify-end gap-1.5">
+          <div className="mt-1 flex items-center justify-end gap-1.5">
             <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
             <LimitInfo
               custom={prefs.contextLimit !== null}
@@ -867,7 +856,7 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
             ) : null}
           </span>
           {stats.contextUsedTokens !== null && ctxLimit !== null ? (
-            <div className="mt-1 flex items-baseline justify-end gap-1.5">
+            <div className="mt-1 flex items-center justify-end gap-1.5">
               <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
               <LimitInfo
                 custom={prefs.contextLimit !== null}
@@ -878,7 +867,7 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
         </div>
       ) : stats.contextUsedTokens !== null && ctxLimit !== null ? (
         <div className="border-t border-border pt-2 font-mono text-[10.5px] text-muted-foreground">
-          <div className="flex items-baseline justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-1.5">
             <ContextMeter used={stats.contextUsedTokens} limit={ctxLimit} />
             <LimitInfo
               custom={prefs.contextLimit !== null}
