@@ -66,7 +66,7 @@ export interface TurnStat {
   /** Provider-reported cost in ACUs (Devin tap only — not USD). */
   acuCost: number | null;
   /** Where this turn's token numbers came from. */
-  usageSource: "bb-events" | "opencode-local" | "devin-acp-tap" | null;
+  usageSource: "bb-events" | "opencode-local" | "devin-acp-tap" | "muse-acp-tap" | null;
   /** Latest context-window snapshot inside this turn, when reported. */
   contextUsedTokens: number | null;
   contextWindowTokens: number | null;
@@ -81,7 +81,7 @@ export interface SessionStats {
   /** Provider-reported session cost (OpenCode local data only). */
   costUsd: number | null;
   /** Dominant usage source across the session. */
-  usageSource: "bb-events" | "opencode-local" | "devin-acp-tap" | "none";
+  usageSource: "bb-events" | "opencode-local" | "devin-acp-tap" | "muse-acp-tap" | "none";
   /** Latest context-window snapshot for the thread. */
   contextUsedTokens: number | null;
   contextWindowTokens: number | null;
@@ -570,5 +570,62 @@ export function applyDevinUsage(
     reasoningOutputTokens: reasoning,
     totalTokens: input + cached + output + reasoning,
   };
+  return true;
+}
+
+/**
+ * Fill per-turn usage from a Muse (muse-acp) tap file. The adapter reports
+ * cumulative session totals on each usage_update; src/muse.ts has already
+ * diffed them into per-turn deltas. Only usage-less turns are touched.
+ * The adapter's cost is a catalog list-price estimate — still "est.", just
+ * computed upstream with real rates instead of our bundled table.
+ */
+export function applyMuseUsage(
+  session: SessionStats,
+  perTurn: ReadonlyMap<number, {
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number | null;
+  }>,
+): boolean {
+  let anyApplied = false;
+  for (const [index, usage] of perTurn) {
+    const turn = session.turns[index];
+    if (turn === undefined || turn.usageCalls > 0) continue;
+    if (usage.inputTokens === 0 && usage.outputTokens === 0) continue;
+    turn.usageCalls = 1;
+    turn.inputTokens = usage.inputTokens;
+    turn.outputTokens = usage.outputTokens;
+    if (usage.estimatedCostUsd !== null) {
+      turn.estimatedCostUsd = usage.estimatedCostUsd;
+    }
+    turn.usageSource = "muse-acp-tap";
+    anyApplied = true;
+  }
+  if (!anyApplied) return false;
+  session.usageSource = "muse-acp-tap";
+  let input = session.totals?.inputTokens ?? 0;
+  let output = session.totals?.outputTokens ?? 0;
+  const cached = session.totals?.cachedInputTokens ?? 0;
+  const reasoning = session.totals?.reasoningOutputTokens ?? 0;
+  let est = session.estimatedCostUsd ?? 0;
+  let estKnown = session.estimatedCostUsd !== null;
+  for (const turn of session.turns) {
+    if (turn.usageSource !== "muse-acp-tap") continue;
+    input += turn.inputTokens ?? 0;
+    output += turn.outputTokens ?? 0;
+    if (turn.estimatedCostUsd !== null) {
+      est += turn.estimatedCostUsd;
+      estKnown = true;
+    }
+  }
+  session.totals = {
+    inputTokens: input,
+    cachedInputTokens: cached,
+    outputTokens: output,
+    reasoningOutputTokens: reasoning,
+    totalTokens: input + cached + output + reasoning,
+  };
+  session.estimatedCostUsd = estKnown ? est : null;
   return true;
 }

@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import {
   applyDevinUsage,
+  applyMuseUsage,
   applyOpenCodeUsage,
   computeSessionStats,
   extractProviderThreadId,
@@ -33,6 +34,7 @@ import {
   devinTapPath,
   readDevinTap,
 } from "./src/devin.ts";
+import { attributeMuseTap } from "./src/muse.ts";
 import { ACP_TAP_FILENAME, ACP_TAP_SOURCE } from "./src/acp-tap-source.ts";
 
 export const REALTIME_CHANNEL = "turn-stats";
@@ -83,7 +85,7 @@ const turnStatSchema = z.object({
   decodeTokPerSec: z.number().nullable(),
   ttftMs: z.number().nullable(),
   acuCost: z.number().nullable(),
-  usageSource: z.enum(["bb-events", "opencode-local", "devin-acp-tap"]).nullable(),
+  usageSource: z.enum(["bb-events", "opencode-local", "devin-acp-tap", "muse-acp-tap"]).nullable(),
   contextUsedTokens: z.number().nullable(),
   contextWindowTokens: z.number().nullable(),
 });
@@ -99,7 +101,7 @@ const threadStatsSchema = z.object({
   totals: tokenTotalsSchema.nullable(),
   estimatedCostUsd: z.number().nullable(),
   costUsd: z.number().nullable(),
-  usageSource: z.enum(["bb-events", "opencode-local", "devin-acp-tap", "none"]),
+  usageSource: z.enum(["bb-events", "opencode-local", "devin-acp-tap", "muse-acp-tap", "none"]),
   contextUsedTokens: z.number().nullable(),
   contextWindowTokens: z.number().nullable(),
   turns: z.array(turnStatSchema),
@@ -321,17 +323,28 @@ export default async function plugin(bb: BbPluginApi) {
     return `oc:${data.messages.length}:${last?.createdAt ?? 0}`;
   }
 
-  function mergeDevin(session: SessionStats, rows: EventRow[]): string {
+  // Any tapped ACP session drops <sessionId>.jsonl in the shared tap dir;
+  // the record mix tells us which agent wrote it — Devin's agent_stopped /
+  // turn_stats vs Muse's cumulative usage_update snapshots.
+  function mergeAcpTap(session: SessionStats, rows: EventRow[]): string {
     if (session.usageSource !== "none") return "";
     const providerThreadId = extractProviderThreadId(rows);
     if (providerThreadId === null) return "";
     if (!existsSync(devinTapPath(providerThreadId))) return "";
     const records = readDevinTap(providerThreadId);
     if (records === null || records.length === 0) return "";
-    const perTurn = attributeDevinTap(records, session.turns);
-    if (!applyDevinUsage(session, perTurn)) return "";
+    const hasMuseCumulative = records.some(
+      (r) =>
+        r.kind === "usage_update" &&
+        (r.data.meta as Record<string, unknown> | undefined)?.museCumulative !==
+          undefined,
+    );
+    const applied = hasMuseCumulative
+      ? applyMuseUsage(session, attributeMuseTap(records, session.turns))
+      : applyDevinUsage(session, attributeDevinTap(records, session.turns));
+    if (!applied) return "";
     const last = records[records.length - 1];
-    return `dv:${records.length}:${last?.at ?? 0}`;
+    return `tap:${records.length}:${last?.at ?? 0}`;
   }
 
   async function compute(
@@ -345,7 +358,7 @@ export default async function plugin(bb: BbPluginApi) {
     const session = computeSessionStats(rows);
     if (session.startedAt === null) session.startedAt = thread.createdAt;
     const ocTag = await mergeOpenCode(session, rows);
-    const dvTag = mergeDevin(session, rows);
+    const dvTag = mergeAcpTap(session, rows);
     const signature = `${rows.length}:${rows[rows.length - 1]?.seq ?? 0}:${ocTag}:${dvTag}`;
     return { stats: toResult(thread, session), signature };
   }

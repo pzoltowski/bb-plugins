@@ -85,7 +85,7 @@ drops it. On a live session we verified:
 The plugin registers a second provider, **Devin (stats tap)**, whose launch
 spec runs `~/.bb/plugins/turn-stats/acp-tap.mjs` — a ~100-line stdio
 passthrough that spawns the real `devin acp`, forwards traffic byte-for-byte,
-and tees the messages above into `acp-tap/<sessionId>.jsonl`. The plugin
+and tees the messages above into `~/.bb/acp-tap/<sessionId>.jsonl`. The plugin
 reads that file (sessionId = `providerThreadId`) and attributes records to
 turns by timestamp. This yields real per-turn input/output/cached tokens,
 provider-measured **decode tok/s**, **TTFT**, and ACU cost when reported.
@@ -102,6 +102,21 @@ Trade-offs, honestly:
   can't read; those threads show timing only.
 - Disable via `devinTap: off` (stops registering the provider; existing tap
   data stays readable).
+
+### Muse (muse-acp) — same tap, no extra provider
+
+bb-plugin-muse-code routes its own launch spec through the identical shim, so
+threads on the normal **Muse Code** provider are tapped automatically — no
+second picker entry. muse-acp reports *cumulative* session totals on every
+`usage_update` (`_meta.museCumulative.{promptTokens, outputTokens,
+totalTokens}`) plus an adapter-computed list-price `cost`. This plugin diffs
+consecutive snapshots across turn boundaries to get per-turn input/output and
+a per-turn cost estimate.
+
+Honest labeling: Muse cost is marked `est.` — it's the adapter's catalog
+list-price estimate (`billing: false`), better rates than our bundled table
+but still not a billing figure. Muse does not report per-call timing, so no
+`decode` speed or TTFT — `avg` t/s only.
 
 ### Roadmap: the proper fix is upstream
 
@@ -136,8 +151,12 @@ OpenCode threads ──► src/opencode.ts reads ~/.local/share/opencode DB
                      (or `opencode export`) ──► merged in src/stats.ts
 
 Devin (stats tap) ──► acp-tap.mjs proxies `devin acp` and tees usage
-threads               signals to acp-tap/<sessionId>.jsonl
+threads               signals to ~/.bb/acp-tap/<sessionId>.jsonl
                       ──► src/devin.ts reads + attributes ──► stats.ts
+
+Muse Code         ──► same shim inside bb-plugin-muse-code's launch spec
+threads               (no separate provider) tees cumulative usage_update
+                      snapshots ──► src/muse.ts diffs per-turn deltas
 ```
 
 Nothing is persisted by the plugin itself; BB stores the events, OpenCode

@@ -19,12 +19,25 @@ import { homedir } from "node:os";
 
 export const DEVIN_TAP_PROVIDER_ID = "acp-devin-tap";
 
-export function devinTapDir(): string {
+/** Shared convention: any tapped ACP provider drops <sessionId>.jsonl here. */
+export function acpTapDir(): string {
+  return join(homedir(), ".bb", "acp-tap");
+}
+
+/** Original location — kept as a fallback for sessions captured before the
+ * shared-dir convention. */
+export function legacyTapDir(): string {
   return join(homedir(), ".bb", "plugins", "turn-stats", "acp-tap");
 }
 
+export function devinTapDir(): string {
+  return acpTapDir();
+}
+
 export function devinTapPath(sessionId: string): string {
-  return join(devinTapDir(), `${sessionId}.jsonl`);
+  const shared = join(acpTapDir(), `${sessionId}.jsonl`);
+  if (existsSync(shared)) return shared;
+  return join(legacyTapDir(), `${sessionId}.jsonl`);
 }
 
 export interface DevinTapRecord {

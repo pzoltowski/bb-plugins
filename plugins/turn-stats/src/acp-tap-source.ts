@@ -68,12 +68,13 @@ function inspectAgent(line) {
   if (m.method === "session/update") {
     const u = m.params?.update;
     if (u?.sessionUpdate === "usage_update") {
-      tap(sid, "usage_update", { used: u.used, size: u.size, meta: u._meta });
+      tap(sid, "usage_update", { used: u.used, size: u.size, cost: u.cost, meta: u._meta });
     } else if (u && u.sessionUpdate && !String(u.sessionUpdate).includes("chunk")) {
       tap(sid, "update:" + u.sessionUpdate, u);
     }
-  } else if (typeof m.method === "string" && m.method.startsWith("_cognition.ai/")) {
-    tap(sid, m.method.slice("_cognition.ai/".length), m.params);
+  } else if (typeof m.method === "string" && m.method.startsWith("_")) {
+    const name = m.method.slice(1);
+    tap(sid, name.startsWith("cognition.ai/") ? name.slice("cognition.ai/".length) : name.replace(/\\//g, ":"), m.params);
   } else if (m.id !== undefined && m.result !== undefined) {
     const req = pending.get(m.id);
     pending.delete(m.id);

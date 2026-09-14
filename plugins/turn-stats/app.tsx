@@ -73,6 +73,7 @@ function fmtAcu(acu: number): string {
 function sourceTag(source: ThreadStats["usageSource"]): string | null {
   if (source === "opencode-local") return "VIA OPENCODE";
   if (source === "devin-acp-tap") return "VIA DEVIN TAP";
+  if (source === "muse-acp-tap") return "VIA MUSE TAP";
   return null;
 }
 
@@ -633,6 +634,10 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
       ) : stats.usageSource === "devin-acp-tap" ? (
         <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-[10.5px] text-muted-foreground">
           Tokens and speed tapped from devin acp's wire — provider-reported, not estimated.
+        </div>
+      ) : stats.usageSource === "muse-acp-tap" ? (
+        <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-[10.5px] text-muted-foreground">
+          Per-turn tokens diffed from muse-acp's cumulative usage — cost is the adapter's catalog list-price estimate.
         </div>
       ) : stats.turns.length > 0 &&
         stats.turns.every((t) => t.usageCalls === 0) ? (
