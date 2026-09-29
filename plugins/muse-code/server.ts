@@ -8,13 +8,16 @@
 // here replaces all of that with what the adapter actually advertises, and
 // adds `bb muse-code install` so nobody has to go find the binary first.
 //
-// Capability facts read from muse-acp v0.3.2, src/main.rs (V1_INIT/V2_INIT)
-// and src/acp.rs (config_options):
-//   authMethods:  []                 — Muse signs in out of band, via `muse`
+// Capability facts read from muse-acp v0.9.0, src/main.rs (V1_INIT/V2_INIT)
+// and src/acp.rs (config_options), and confirmed against a live handshake:
+//   authMethods:  muse-login         — terminal auth (`muse-acp login`); bb's
+//                                      bridge does not run terminal auth
 //   loadSession:  true               — list/resume/close/fork (fork since v0.3.0)
 //   prompt:       text, image, embeddedContext
-//   session mode: ask | auto | deny
-//   reasoning:    none | minimal | low | medium | high | xhigh | ultra
+//   mcp:          http (since v0.8.0 — editor MCP servers forwarded to Muse)
+//   approval:     allowAll | promptUnmatched | onRequest | denyUnmatched
+//   reasoning:    default | none | minimal | low | medium | high | xhigh | max | ultra
+//   commands:     compact, goal, rename, workflow-child, plus Muse's skills
 import { type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -71,10 +74,12 @@ export default async function plugin(bb: BbPluginApi) {
     family: "acp",
     icon: "./icons/muse-code.svg",
     strings: {
-      // muse-acp advertises `authMethods: []` — there is no in-band ACP login
-      // to prompt for. Muse Code authenticates through its own CLI.
-      signInHint: "Run `muse` on that machine and sign in, then reload the provider.",
-      expiredHint: "Your Muse Code session expired. Run `muse` on that machine to sign in again, then reload.",
+      // The adapter advertises a terminal auth method (`muse-acp login`), but
+      // bb's ACP bridge only runs headless auth methods, so sign-in stays out
+      // of band. `muse-acp login` offers to install Muse Code first if it is
+      // missing, then runs `muse login`.
+      signInHint: "Run `muse-acp login` on that machine and approve the code in your browser, then reload the provider.",
+      expiredHint: "Your Muse Code session expired. Run `muse-acp login` on that machine to sign in again, then reload.",
       installUrl: "https://github.com/BrokkAi/muse-acp#installation",
       iconTint: { light: "#0064E0", dark: "#0082FB" },
     },
@@ -90,19 +95,28 @@ export default async function plugin(bb: BbPluginApi) {
       // No service tier concept in the adapter or in Muse's config options.
       supportsServiceTier: false,
       supportsNativeUserQuestion: false,
-      supportsManualCompaction: false,
+      // bb's bridge sends compaction as a bare `/compact` prompt, which the
+      // adapter submits to Muse natively (since v0.5.0).
+      supportsManualCompaction: true,
       supportsThreadArchive: false,
+      // `/rename` exists as a Muse command, but bb's ACP bridge does not
+      // forward thread renames to the agent.
       supportsThreadRename: false,
       // sessionCapabilities advertises list/resume/close/fork — ACP fork
       // clones at the tip only, no checkpoint rewind.
       fork: "tip",
+      // bb answers the adapter's permission requests itself and never sets
+      // Muse's own approval mode, so Muse's mode names don't matter here.
+      // The ACP bridge rejects "auto".
       permissionModes: ["accept-edits", "full"],
-      // Muse's seven efforts minus `minimal`, which bb's vocabulary lacks.
-      reasoningLevels: ["none", "low", "medium", "high", "xhigh", "ultra"],
+      // Fallback ladder only; the live picker comes from the adapter's
+      // reasoning_effort option. Muse's `minimal` has no bb equivalent.
+      reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max", "ultra"],
     },
-    // "goal" | "plan" composer buttons; Muse's own skills already arrive as
-    // ACP available commands, so nothing extra is needed here.
-    composerActions: [],
+    // The composer inserts `/goal ` and `/plan `. The adapter maps `/goal`
+    // onto Muse's goal/* methods (since v0.7.0), and `plan` is a native Muse
+    // skill; the rest of Muse's skills arrive as ACP available commands.
+    composerActions: ["goal", "plan"],
     experimental_bridgeOptions: {
       acpLaunchSpec: {
         displayName: DISPLAY_NAME,

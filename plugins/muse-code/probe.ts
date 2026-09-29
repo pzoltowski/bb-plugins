@@ -56,7 +56,7 @@ export async function probeLocal(command = "muse-acp"): Promise<Probe> {
   if (base.museCliPath === null) {
     return {
       ...base,
-      error: "The adapter is installed, but the `muse` CLI is not. Install Muse Code and sign in: curl -fsSL https://api.meta.ai/muse-launcher.sh | sh",
+      error: "The adapter is installed, but the `muse` CLI is not. Run `muse-acp login` to install Muse Code and sign in.",
     };
   }
 

@@ -15,4 +15,5 @@ Token and context usage come from Muse itself rather than an estimate, so the
 context meter reflects what the session actually spent.
 
 Requires a Muse Code subscription and the `muse` CLI, which is where Muse Code
-authentication lives.
+authentication lives. `muse-acp login` installs the CLI if it is missing and
+signs in.
