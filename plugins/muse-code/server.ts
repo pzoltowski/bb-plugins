@@ -8,16 +8,27 @@
 // here replaces all of that with what the adapter actually advertises, and
 // adds `bb muse-code install` so nobody has to go find the binary first.
 //
-// Capability facts read from muse-acp v0.9.0, src/main.rs (V1_INIT/V2_INIT)
-// and src/acp.rs (config_options), and confirmed against a live handshake:
+// Capability facts read from muse-acp v0.12.0 and confirmed against a live
+// handshake on Muse 1.4.4:
 //   authMethods:  muse-login         — terminal auth (`muse-acp login`); bb's
 //                                      bridge does not run terminal auth
-//   loadSession:  true               — list/resume/close/fork (fork since v0.3.0)
+//   loadSession:  true               — list/resume/close/fork/subagents/
+//                                      additionalDirectories
 //   prompt:       text, image, embeddedContext
 //   mcp:          http (since v0.8.0 — editor MCP servers forwarded to Muse)
-//   approval:     allowAll | promptUnmatched | onRequest | denyUnmatched
-//   reasoning:    default | none | minimal | low | medium | high | xhigh | max | ultra
-//   commands:     compact, goal, rename, workflow-child, plus Muse's skills
+//   modes:        default | readOnly | plan (real ACP session modes since
+//                 v0.10.0 — plan/read-only run on a second write/shell-
+//                 disabled muse host)
+//   approval:     own `approval_mode` selector since v0.10.0 — allowAll |
+//                 promptUnmatched | onRequest | denyUnmatched; approval ids
+//                 still accepted on `mode`/`session/set_mode` for old clients
+//   auto_review:  off | on selector (v0.10.0, default off; needs Muse ≥1.4.2)
+//   reasoning:    per-model tiers since v0.10.0 — e.g. muse-spark-1.3-
+//                 contributor offers default | minimal | low | medium | high |
+//                 xhigh | max
+//   steering:     _meta.steering.supported on ACP v1 since v0.11.0
+//   commands:     compact, goal, rename, workflow-child, feedback (v0.10.0),
+//                 plus Muse's skills
 import { type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
