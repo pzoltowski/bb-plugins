@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-t3-keys",
+  "version": "0.2.0",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "bb plugin build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.6.37",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "bb": ">=0.48",
+    "bbPluginSdk": ">=0.6.37"
+  },
+  "bb": {
+    "name": "T3 Keys",
+    "description": "T3 Code style shortcuts bb lacks: copy thread reference (Cmd+Shift+C), usage page (Cmd+U), search in files (Cmd+Shift+F), filter the sidebar by project (Cmd+/).",
+    "branding": {
+      "icon": "Keyboard"
+    },
+    "app": "./app.tsx",
+    "server": "./server.ts"
+  }
+}
