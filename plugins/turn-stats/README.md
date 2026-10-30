@@ -49,6 +49,7 @@ Configurable in Tools → Turn Stats (or `bb plugin config turn-stats`):
 | `chip` | `stats` / `icon` | `stats` — the header chip shows `40s · 39.7 tok/s · $0.16` inline; `icon` renders just the chart glyph (hover still opens the card, click opens the panel) |
 | `placement` | `header` / `composer` / `header + composer` | `header` — `composer` shows the same chip as a slim banner above the composer instead |
 | `opencodeFallback` | `auto` / `off` | `auto` — for OpenCode ACP threads, read real per-turn tokens/cost/decode-speed from OpenCode's local session store |
+| `dshFallback` | `auto` / `off` | `auto` — for DeepSeek Harness (`dsh`) ACP threads, read per-turn tokens from dsh's local session log and estimate cost from DeepSeek's public rates |
 | `devinTap` | `on` / `off` | `on` — registers the "Devin (stats tap)" provider, an acp-tap shim that records the per-turn usage `devin acp` already emits |
 | `contextLimit` | string: `250000`, `250k`, `1m` | blank — a soft limit where the *smart zone* ends for you (inspired by [context-meter](https://github.com/Hazihell/bb-plugin-context-meter)). The composer banner's right side and the card/panel session rows meter context against it: `34k/250k · 14%` with a bar that goes amber ≥75% and red ≥100%. Blank falls back to the provider's model window |
 
@@ -100,6 +101,27 @@ to turns by timestamp. This yields:
 Provider-native `tokenUsage` events always win when present. Missing OpenCode,
 a locked/changed DB, or a session not yet flushed degrade silently to the
 usual no-usage state. Disable via `opencodeFallback: off`.
+
+### DeepSeek Harness local fallback
+
+`dsh` journals every model call — fresh input, cache-read/-write and output
+tokens — to `~/.dsh/sessions/<cwd-slug>/<sessionId>/session.v4.jsonl.zstd`
+(`$DSH_HOME` overrides the root). The ACP bridge's `providerThreadId` is that
+session id (a UUID), so BB turns join onto dsh calls by timestamp, the same way
+as the OpenCode fallback. The log is read with the `zstd` CLI, or Node's
+built-in zstd when the CLI is missing. This yields:
+
+- per-turn input / cache-read / output tokens (provider-reported);
+- an **estimated** cost (`est.`): dsh logs tokens, not dollars, so each call is
+  priced from DeepSeek's public per-token rates (`src/dsh.ts`), doubled during
+  weekday peak hours (Mon–Fri 01–04 and 06–10 UTC). Chinese public holidays are
+  off-peak at DeepSeek but not modelled here, so those days read slightly high;
+- tok/s from step start → committed message (includes time-to-first-token, so
+  short replies look slow).
+
+The rates were checked against api-docs.deepseek.com on 2026-10-18; update the
+table in `src/dsh.ts` when DeepSeek changes them. Provider-native `tokenUsage`
+events always win. Disable via `dshFallback: off`.
 
 ### Devin stats tap
 

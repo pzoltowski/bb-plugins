@@ -71,7 +71,7 @@ export interface TurnStat {
   /** Provider-reported cost in ACUs (Devin tap only — not USD). */
   acuCost: number | null;
   /** Where this turn's token numbers came from. */
-  usageSource: "bb-events" | "opencode-local" | "devin-acp-tap" | "muse-acp-tap" | null;
+  usageSource: "bb-events" | "opencode-local" | "dsh-local" | "devin-acp-tap" | "muse-acp-tap" | null;
   /** Latest context-window snapshot inside this turn, when reported. */
   contextUsedTokens: number | null;
   contextWindowTokens: number | null;
@@ -86,7 +86,7 @@ export interface SessionStats {
   /** Provider-reported session cost (OpenCode local data only). */
   costUsd: number | null;
   /** Dominant usage source across the session. */
-  usageSource: "bb-events" | "opencode-local" | "devin-acp-tap" | "muse-acp-tap" | "none";
+  usageSource: "bb-events" | "opencode-local" | "dsh-local" | "devin-acp-tap" | "muse-acp-tap" | "none";
   /** Latest context-window snapshot for the thread. */
   contextUsedTokens: number | null;
   contextWindowTokens: number | null;
@@ -518,6 +518,70 @@ export function applyOpenCodeUsage(
       }
     }
     session.costUsd = known ? cost : null;
+  }
+  return true;
+}
+
+/**
+ * Fill per-turn usage from DeepSeek Harness's local session log (src/dsh.ts).
+ * Same contract as applyOpenCodeUsage — only usage-less turns are touched —
+ * except the cost: dsh logs tokens, not dollars, so it is priced from
+ * DeepSeek's public rates and stays an estimate (`estimatedCostUsd`, "est.").
+ */
+export function applyDshUsage(
+  session: SessionStats,
+  perTurn: ReadonlyMap<number, {
+    calls: number;
+    inputTokens: number;
+    cachedInputTokens: number;
+    cacheWriteTokens: number;
+    outputTokens: number;
+    reasoningOutputTokens: number;
+    costUsd: number | null;
+    decodeTokPerSec: number | null;
+  }>,
+  totals: {
+    input: number;
+    output: number;
+    reasoning: number;
+    cacheRead: number;
+    cacheWrite: number;
+    cost: number;
+    model: string | null;
+  } | null,
+): boolean {
+  let anyApplied = false;
+  for (const [index, usage] of perTurn) {
+    const turn = session.turns[index];
+    if (turn === undefined || turn.usageCalls > 0) continue;
+    turn.usageCalls = usage.calls;
+    turn.inputTokens = usage.inputTokens;
+    turn.cachedInputTokens = usage.cachedInputTokens;
+    turn.cacheWriteTokens = usage.cacheWriteTokens;
+    turn.outputTokens = usage.outputTokens;
+    turn.reasoningOutputTokens = usage.reasoningOutputTokens;
+    turn.estimatedCostUsd = usage.costUsd;
+    turn.decodeTokPerSec = usage.decodeTokPerSec;
+    turn.usageSource = "dsh-local";
+    anyApplied = true;
+  }
+  if (!anyApplied) return false;
+  session.usageSource = "dsh-local";
+  if (totals !== null) {
+    session.totals = {
+      inputTokens: totals.input + totals.cacheWrite,
+      cachedInputTokens: totals.cacheRead,
+      outputTokens: totals.output,
+      reasoningOutputTokens: totals.reasoning,
+      totalTokens:
+        totals.input + totals.cacheWrite + totals.cacheRead + totals.output + totals.reasoning,
+    };
+    session.estimatedCostUsd = totals.cost;
+    // bb carries the ACP model as a JSON route like ["deepseek-official","deepseek-flash"];
+    // the log has the plain model id.
+    if (totals.model !== null && (session.model === null || session.model.startsWith("["))) {
+      session.model = totals.model;
+    }
   }
   return true;
 }

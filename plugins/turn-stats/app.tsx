@@ -299,6 +299,7 @@ function SourceInfo({ source }: { source: ThreadStats["usageSource"] }) {
   const text = {
     "bb-events": "Reported by the provider through bb's normalized events.",
     "opencode-local": "Read from OpenCode's local session store — provider-reported, not estimated.",
+    "dsh-local": "Read from DeepSeek Harness's local session log — provider-reported tokens; cost is estimated from DeepSeek's public rates.",
     "devin-acp-tap": "Tapped from devin acp's wire — provider-reported, not estimated.",
     "muse-acp-tap": "Tapped from the Muse ACP wire — provider-reported tokens; cost is the adapter's list-price estimate.",
     none: null,
@@ -749,6 +750,10 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
       {stats.usageSource === "opencode-local" ? (
         <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-[10.5px] text-muted-foreground">
           Tokens and cost read from OpenCode's local session store — provider-reported, not estimated.
+        </div>
+      ) : stats.usageSource === "dsh-local" ? (
+        <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-[10.5px] text-muted-foreground">
+          Tokens read from DeepSeek Harness's local session log — provider-reported. Cost is an estimate from DeepSeek's public rates (peak weekday hours doubled; Chinese holidays not modelled).
         </div>
       ) : stats.usageSource === "devin-acp-tap" ? (
         <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-[10.5px] text-muted-foreground">

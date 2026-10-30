@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import {
   applyDevinUsage,
+  applyDshUsage,
   applyMuseTiming,
   applyMuseUsage,
   applyOpenCodeUsage,
@@ -28,6 +29,7 @@ import {
   fetchSessionMessages,
   type OpenCodeInstall,
 } from "./src/opencode.ts";
+import { detectDsh, fetchDshSession, type DshInstall } from "./src/dsh.ts";
 import {
   attributeDevinTap,
   DEVIN_TAP_PROVIDER_ID,
@@ -88,7 +90,7 @@ const turnStatSchema = z.object({
   streamMs: z.number().nullable(),
   tailMs: z.number().nullable(),
   acuCost: z.number().nullable(),
-  usageSource: z.enum(["bb-events", "opencode-local", "devin-acp-tap", "muse-acp-tap"]).nullable(),
+  usageSource: z.enum(["bb-events", "opencode-local", "dsh-local", "devin-acp-tap", "muse-acp-tap"]).nullable(),
   contextUsedTokens: z.number().nullable(),
   contextWindowTokens: z.number().nullable(),
 });
@@ -104,7 +106,7 @@ const threadStatsSchema = z.object({
   totals: tokenTotalsSchema.nullable(),
   estimatedCostUsd: z.number().nullable(),
   costUsd: z.number().nullable(),
-  usageSource: z.enum(["bb-events", "opencode-local", "devin-acp-tap", "muse-acp-tap", "none"]),
+  usageSource: z.enum(["bb-events", "opencode-local", "dsh-local", "devin-acp-tap", "muse-acp-tap", "none"]),
   contextUsedTokens: z.number().nullable(),
   contextWindowTokens: z.number().nullable(),
   turns: z.array(turnStatSchema),
@@ -157,6 +159,14 @@ export default async function plugin(bb: BbPluginApi) {
       label: "OpenCode local data",
       description:
         "For OpenCode ACP threads, read real per-turn tokens, cost, and decode speed from OpenCode's local session store (~/.local/share/opencode). Off = timing only.",
+      options: ["auto", "off"],
+      default: "auto",
+    },
+    dshFallback: {
+      type: "select",
+      label: "DeepSeek Harness local data",
+      description:
+        "For DeepSeek Harness (dsh) ACP threads, read per-turn tokens from dsh's local session log (~/.dsh/sessions) and estimate cost from DeepSeek's public rates, including weekday peak pricing. Off = timing only.",
       options: ["auto", "off"],
       default: "auto",
     },
@@ -332,6 +342,31 @@ export default async function plugin(bb: BbPluginApi) {
     return `oc:${data.messages.length}:${last?.createdAt ?? 0}`;
   }
 
+  let dshInstall: DshInstall | null | undefined;
+
+  async function mergeDsh(session: SessionStats, rows: EventRow[]): Promise<string> {
+    const prefs = await settings.get().catch(() => null);
+    if (prefs?.dshFallback === "off") return "";
+    if (session.usageSource !== "none") return "";
+    const providerThreadId = extractProviderThreadId(rows);
+    if (providerThreadId === null) return "";
+    if (dshInstall === undefined) {
+      dshInstall = await detectDsh().catch(() => null);
+      if (dshInstall !== null) {
+        bb.log.info(`turn-stats: dsh local fallback active (${dshInstall.sessionsDir})`);
+      }
+    }
+    if (dshInstall === null) return "";
+    const data = await fetchDshSession(dshInstall, providerThreadId, (m) =>
+      bb.log.warn(`turn-stats: dsh ${m}`),
+    ).catch(() => null);
+    if (data === null) return "";
+    const perTurn = attributeToTurns(data.messages, session.turns);
+    if (!applyDshUsage(session, perTurn, data.totals)) return "";
+    const last = data.messages[data.messages.length - 1];
+    return `dsh:${data.messages.length}:${last?.completedAt ?? 0}`;
+  }
+
   // Any tapped ACP session drops <sessionId>.jsonl in the shared tap dir.
   // Provider id is the authoritative dispatch; the record mix is the
   // fallback for tap files written by providers we don't recognise yet.
@@ -374,8 +409,9 @@ export default async function plugin(bb: BbPluginApi) {
     const session = computeSessionStats(rows);
     if (session.startedAt === null) session.startedAt = thread.createdAt;
     const ocTag = await mergeOpenCode(session, rows);
+    const dshTag = await mergeDsh(session, rows);
     const dvTag = mergeAcpTap(session, rows, thread.providerId);
-    const signature = `${rows.length}:${rows[rows.length - 1]?.seq ?? 0}:${ocTag}:${dvTag}`;
+    const signature = `${rows.length}:${rows[rows.length - 1]?.seq ?? 0}:${ocTag}:${dshTag}:${dvTag}`;
     return { stats: toResult(thread, session), signature };
   }
 
