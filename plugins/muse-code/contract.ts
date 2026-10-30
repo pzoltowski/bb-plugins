@@ -3,6 +3,27 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
+const voiceErrorCode = z.enum([
+  "auth_required",
+  "invalid_response",
+  "rate_limited",
+  "request_failed",
+  "service_unavailable",
+  "timeout",
+]);
+
+const transcribeOutput = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), text: z.string() }).strict(),
+  z
+    .object({ ok: z.literal(false), code: voiceErrorCode, message: z.string() })
+    .strict(),
+]);
+
+const voiceStatusOutput = z.discriminatedUnion("ready", [
+  z.object({ ready: z.literal(true) }).strict(),
+  z.object({ ready: z.literal(false), message: z.string().min(1) }).strict(),
+]);
+
 export const museHostContract = defineRpcContract({
   probe: {
     input: z.null(),
@@ -37,5 +58,23 @@ export const museHostContract = defineRpcContract({
       error: z.string().nullable(),
       notes: z.array(z.string()),
     }),
+  },
+  // `muse voice transcribe` behind the plugin's AI-service registration.
+  // The clip arrives base64 because the RPC payload is JSON; the host side
+  // normalizes to 16 kHz mono WAV (what muse requires) before invoking it.
+  "voice.transcribe": {
+    input: z
+      .object({
+        audioBase64: z.string().min(1),
+        filename: z.string().min(1),
+        mimeType: z.string().min(1),
+        timeoutMs: z.number().int().positive(),
+      })
+      .strict(),
+    output: transcribeOutput,
+  },
+  "voice.status": {
+    input: z.null(),
+    output: voiceStatusOutput,
   },
 });

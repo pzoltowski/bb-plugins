@@ -8,27 +8,35 @@
 // here replaces all of that with what the adapter actually advertises, and
 // adds `bb muse-code install` so nobody has to go find the binary first.
 //
-// Capability facts read from muse-acp v0.12.0 and confirmed against a live
-// handshake on Muse 1.4.4:
-//   authMethods:  muse-login         — terminal auth (`muse-acp login`); bb's
-//                                      bridge does not run terminal auth
+// Capability facts read from muse-acp v0.16.0 and confirmed against a live
+// handshake on Muse 1.4.12 (host fingerprint status=unknown — the adapter's
+// newest classified pin is 1.4.11; additive-only surface, works):
+//   authMethods:  muse-login         — terminal auth (`muse-acp login`); bb
+//                                      0.47 advertises auth.terminal, so
+//                                      sign-in can run in-band now
 //   loadSession:  true               — list/resume/close/fork/subagents/
-//                                      additionalDirectories
-//   prompt:       text, image, embeddedContext
-//   mcp:          http (since v0.8.0 — editor MCP servers forwarded to Muse)
+//                                      additionalDirectories; rename granted
+//   prompt:       text, image, embeddedContext; chunked video since v0.13.0
+//   mcp:          http + the adapter's `editor` server (v0.16.0): when the
+//                 client advertises fs.read/writeTextFile — bb 0.47 does —
+//                 Muse gets read/write/edit_text_file tools that go through
+//                 the editor's fs (unsaved buffers, diff cards)
 //   modes:        default | readOnly | plan (real ACP session modes since
-//                 v0.10.0 — plan/read-only run on a second write/shell-
-//                 disabled muse host)
+//                 v0.10.0 — read-only/plan run on a second muse host with
+//                 writes and shell disabled)
 //   approval:     own `approval_mode` selector since v0.10.0 — allowAll |
 //                 promptUnmatched | onRequest | denyUnmatched; approval ids
 //                 still accepted on `mode`/`session/set_mode` for old clients
-//   auto_review:  off | on selector (v0.10.0, default off; needs Muse ≥1.4.2)
-//   reasoning:    per-model tiers since v0.10.0 — e.g. muse-spark-1.3-
-//                 contributor offers default | minimal | low | medium | high |
-//                 xhigh | max
+//   auto_review:  off | on selector (v0.10.0, default off; needs Muse >=1.4.2;
+//                 boolean toggle for clients with configOptions.boolean)
+//   reasoning:    per-model tiers since v0.10.0, remembered per model since
+//                 v0.13.0
 //   steering:     _meta.steering.supported on ACP v1 since v0.11.0
 //   commands:     compact, goal, rename, workflow-child, feedback (v0.10.0),
+//                 recap, skill-activation, workflow pause/resume (v0.13.0),
 //                 plus Muse's skills
+//   v1-only gaps: bb stays on ACP v1 — tool-call diffs, streamed tool output,
+//                 agent terminals and URL-elicitation login are v2
 import { type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -36,6 +44,7 @@ import { homedir } from "node:os";
 import { museHostContract } from "./contract.js";
 import { runInstall } from "./install.js";
 import { probeLocal } from "./probe.js";
+import { transcribeClip, voiceStatus } from "./voice.js";
 import { ACP_TAP_FILENAME, ACP_TAP_SOURCE } from "./src/acp-tap-source.js";
 
 const PROVIDER_ID = "acp-muse-code";
@@ -67,6 +76,41 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   const host = bb.hosts.experimental_client({ contract: museHostContract });
+
+  // `muse voice transcribe` as a bb AI service — the same trick the Codex
+  // provider uses for gpt-transcribe, riding the Muse Code sign-in instead
+  // of a billing API key. Voice calls land on the primary host (the machine
+  // the user works on); the server machine is the fallback. The `muse` CLI
+  // takes no vocabulary prompt, so bb's `hint` goes unused.
+  const VOICE_TIMEOUT_MS = 65_000;
+  bb.experimental_aiServices.register({
+    id: "muse",
+    displayName: "Muse",
+    async transcribe(audio, { signal }) {
+      const input = {
+        audioBase64: Buffer.from(await audio.arrayBuffer()).toString("base64"),
+        filename: audio.name === "" ? "voice-input" : audio.name,
+        mimeType: audio.type === "" ? "application/octet-stream" : audio.type,
+        timeoutMs: VOICE_TIMEOUT_MS,
+      };
+      const hostId = (await bb.sdk.system.config()).primaryHostId;
+      const result =
+        hostId === null
+          ? await transcribeClip(input, signal)
+          : await host.call("voice.transcribe", input, {
+              hostId,
+              signal,
+              timeoutMs: VOICE_TIMEOUT_MS + 10_000,
+            });
+      if (!result.ok) throw new Error(result.message);
+      return result.text;
+    },
+    async status() {
+      const hostId = (await bb.sdk.system.config()).primaryHostId;
+      if (hostId === null) return voiceStatus();
+      return host.call("voice.status", null, { hostId, timeoutMs: 5_000 });
+    },
+  });
 
   // Written on every plugin start so upgrades self-heal. The provider is
   // registered unconditionally — if the shim can't be written the launch

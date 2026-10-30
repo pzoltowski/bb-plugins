@@ -22,7 +22,7 @@ bb  ──ACP──▶  acp-tap (stdio shim)  ──ACP──▶  muse-acp  ─�
 independent, dependency-free Rust bridge by Brokk.ai, Apache-2.0. This plugin
 does not vendor or rebuild it — `bb muse-code install` downloads the release
 the project publishes and checks it against the SHA-256 published beside it.
-Tested against **v0.12.0** with Muse Code 1.4.4.
+Tested against **v0.16.0** with Muse Code 1.4.12.
 
 Between bb and the adapter sits `acp-tap.mjs`, a ~100-line stdio
 passthrough this plugin writes to `~/.bb/plugins/muse-code/` on startup. It
@@ -41,7 +41,7 @@ only the side-channel capture stops.
 | | | |
 | --- | --- | --- |
 | Token and context usage | yes | Reported by Muse, not estimated by bb — the adapter forwards MSP session usage as ACP `usage_update` |
-| Model picker | yes | From your signed-in account: `muse-spark-1.3`, `-contributor`, and the 1.2 pair |
+| Model picker | yes | From your signed-in account — `muse-wonder-1.0` and the muse-spark pair as of v0.16.0 |
 | Reasoning effort | yes | Per-model tiers from the adapter since v0.10.0 — e.g. Minimal to Max on `muse-spark-1.3-contributor` |
 | Tool approvals | yes | Muse's permission requests surface as bb permission prompts; bb's own mode decides. The adapter also offers an opt-in `auto_review` selector (v0.10.0, off by default, needs Muse ≥1.4.2) that routes each request to a reviewer agent |
 | Session resume | yes | The adapter advertises `list`, `resume`, `close` |
@@ -89,8 +89,9 @@ muse-acp login   # installs Muse Code if missing, then runs `muse login`
 
 ## What the adapter advertises
 
-Read from muse-acp v0.12.0 and confirmed against a live handshake on Muse
-Code 1.4.4:
+Read from muse-acp v0.16.0 and confirmed against a live handshake on Muse
+Code 1.4.12 (fingerprint `status=unknown` — the adapter's newest classified
+pin is 1.4.11; the surface is additive-only and works):
 
 | | |
 | --- | --- |
@@ -101,7 +102,9 @@ Code 1.4.4:
 | Approval mode | `allowAll`, `promptUnmatched`, `onRequest`, `denyUnmatched`, on its own `approval_mode` selector since v0.10.0 (still accepted on `mode`/`session/set_mode` for older clients) |
 | Auto-review | `off`/`on` selector (v0.10.0, default off; reviewer agent answers permission requests; needs Muse ≥1.4.2) |
 | MCP | HTTP servers forwarded to Muse |
-| Commands | `compact`, `goal`, `rename`, `workflow-child`, `feedback` (v0.10.0), plus Muse's skills |
+| Commands | `compact`, `goal`, `rename`, `workflow-child`, `feedback` (v0.10.0), `recap`, `skill-activation`, `workflow pause/resume` (v0.13.0), plus Muse's skills |
+| Editor fs tools | `read_text_file`, `write_text_file`, `edit_text_file` via an adapter-owned `editor` MCP server when the client advertises `fs.read/writeTextFile` — bb 0.47 does (v0.16.0) |
+| Logout | `muse-acp logout` + `auth/logout` (v0.16.0) |
 | Reasoning effort | per-model tiers since v0.10.0 — `muse-spark-1.3-contributor` offers `default`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 | Steering | `_meta.steering.supported` advertised on ACP v1 since v0.11.0 |
 

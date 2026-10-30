@@ -13,6 +13,7 @@ import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { museHostContract } from "./contract.js";
 import { runInstall } from "./install.js";
 import { probeLocal } from "./probe.js";
+import { transcribeClip, voiceStatus } from "./voice.js";
 
 export { experimental_providerBridge };
 
@@ -26,5 +27,7 @@ export default experimental_defineHostEntry({
         ...(input.version === undefined ? {} : { version: input.version }),
         force: input.force,
       }),
+    "voice.transcribe": async (input, context) => transcribeClip(input, context.signal),
+    "voice.status": async () => voiceStatus(),
   },
 });
