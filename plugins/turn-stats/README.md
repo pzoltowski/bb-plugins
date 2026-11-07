@@ -1,5 +1,11 @@
 # Turn Stats
 
+> **Deprecated — use [Burn](https://github.com/kalindudc/burn) instead.**
+>
+> Turn Stats (published as Turn TPS) is no longer maintained. Burn covers
+> per-thread and per-prompt cost with budgets, and is actively developed. This
+> README is kept for existing installs.
+
 Per-turn statistics for BB threads — like Zed's `agent.show_turn_stats`, but for
 any BB provider. The same stats surface in three places:
 
@@ -20,7 +26,7 @@ session totals, and the same current-context meter:
 
 <img src="screenshots/side-panel.png" width="520" alt="Side panel: per-turn history, session totals, and current context">
 
-## Install
+## Install (legacy)
 
 ```sh
 bb plugin install git:https://github.com/pzoltowski/bb-plugins.git@semver:turn-stats/:^0.2.0 --plugin turn-stats
@@ -31,6 +37,17 @@ appears in the header (hover for the card, click for the panel), the banner
 shows above the composer, and each message's hover bar gets a "Turn stats"
 action. Providers that report usage natively need nothing else; the tap
 sources below extend coverage to providers that don't.
+
+## Migrate to Burn
+
+```sh
+bb plugin install burn
+bb plugin disable turn-stats
+```
+
+`bb plugin disable` keeps Turn Stats and its settings installed. Use
+`bb plugin remove turn-stats` if you want it gone; that also deletes its
+settings.
 
 ## Surfaces
 

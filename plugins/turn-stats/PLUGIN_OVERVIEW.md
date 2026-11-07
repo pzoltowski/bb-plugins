@@ -1,5 +1,7 @@
 # Turn Stats
 
+> **Deprecated — use [Burn](https://github.com/kalindudc/burn) instead.**
+
 Per-turn statistics for bb threads, for any provider that reports token usage —
 a Zed-style turn footer, reimagined for bb's surfaces.
 

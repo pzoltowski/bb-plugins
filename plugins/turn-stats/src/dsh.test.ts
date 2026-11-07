@@ -100,10 +100,10 @@ test("totalsOf sums every call", () => {
 
 test("end to end: calls attribute to bb turns and the cost is an estimate", () => {
   const rows: EventRow[] = [
-    { id: "1", seq: 1, createdAt: T0 + 5, type: "turn/started", scope: "thread", data: { turn: { id: "a" } } },
-    { id: "2", seq: 2, createdAt: T0 + 6_120, type: "turn/completed", scope: "thread", data: { turn: { id: "a", status: "completed" } } },
-    { id: "3", seq: 3, createdAt: T0 + 60_005, type: "turn/started", scope: "thread", data: { turn: { id: "b" } } },
-    { id: "4", seq: 4, createdAt: T0 + 61_100, type: "turn/completed", scope: "thread", data: { turn: { id: "b", status: "completed" } } },
+    { id: "1", seq: 1, createdAt: T0 + 5, type: "turn/started", scope: { kind: "thread" }, data: { turn: { id: "a" } } },
+    { id: "2", seq: 2, createdAt: T0 + 6_120, type: "turn/completed", scope: { kind: "thread" }, data: { turn: { id: "a", status: "completed" } } },
+    { id: "3", seq: 3, createdAt: T0 + 60_005, type: "turn/started", scope: { kind: "thread" }, data: { turn: { id: "b" } } },
+    { id: "4", seq: 4, createdAt: T0 + 61_100, type: "turn/completed", scope: { kind: "thread" }, data: { turn: { id: "b", status: "completed" } } },
   ];
   const session = computeSessionStats(rows);
   const messages = parseDshLog(LOG);

@@ -69,6 +69,23 @@ function fmtAcu(acu: number): string {
   return acu < 0.01 ? "<0.01 ACU" : `${acu.toFixed(2)} ACU`;
 }
 
+function DeprecatedNotice() {
+  return (
+    <div className="mb-2 rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed text-muted-foreground">
+      Deprecated — use{" "}
+      <a
+        className="underline underline-offset-2"
+        href="https://github.com/kalindudc/burn"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Burn
+      </a>{" "}
+      instead.
+    </div>
+  );
+}
+
 /** Short uppercase source tag for the totals row, or null for bb-native. */
 function avgTps(turn: TurnStatResult, now: number): number | null {
   if (turn.outputTokens === null) return null;
@@ -446,8 +463,11 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
   const turn = running ?? latest;
   if (turn === null) {
     return (
-      <div className="font-mono text-muted-foreground" style={{ fontSize: 10 }}>
-        No turns yet.
+      <div>
+        <DeprecatedNotice />
+        <div className="font-mono text-muted-foreground" style={{ fontSize: 10 }}>
+          No turns yet.
+        </div>
       </div>
     );
   }
@@ -456,6 +476,7 @@ function TurnStatsCard({ stats, now }: { stats: ThreadStats; now: number }) {
   const hasUsage = turn.inputTokens !== null || turn.outputTokens !== null;
   return (
     <div>
+      <DeprecatedNotice />
       <div className="flex items-baseline justify-between">
         <span>
           <span
@@ -724,18 +745,25 @@ function TurnStatsPanel({ threadId, params }: PluginThreadPanelProps) {
 
   if (error !== null && stats === null) {
     return (
-      <div className="p-3 text-xs text-muted-foreground">
-        Turn stats unavailable: {error}
+      <div className="p-3">
+        <DeprecatedNotice />
+        <div className="text-xs text-muted-foreground">Turn stats unavailable: {error}</div>
       </div>
     );
   }
   if (stats === null) {
-    return <div className="p-3 text-xs text-muted-foreground">Loading turn stats…</div>;
+    return (
+      <div className="p-3">
+        <DeprecatedNotice />
+        <div className="text-xs text-muted-foreground">Loading turn stats…</div>
+      </div>
+    );
   }
 
   const ordered = [...stats.turns].reverse();
   return (
     <div className="space-y-3">
+      <DeprecatedNotice />
       <div className="border-b border-border pb-2 font-mono text-[10.5px] leading-relaxed text-muted-foreground">
         session started <b className="font-semibold text-foreground">{stats.createdAt !== 0 ? fmtAgo(stats.createdAt, now) : "—"}</b>
         {stats.lastActivityAt !== null ? (

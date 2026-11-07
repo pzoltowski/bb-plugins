@@ -1,6 +1,7 @@
 {
   "name": "bb-plugin-turn-stats",
-  "version": "0.2.0",
+  "version": "0.2.1",
+  "description": "Deprecated — use Burn. Per-turn timing, token usage, average throughput, and estimated cost.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -9,7 +10,7 @@
   },
   "bb": {
     "name": "Turn Stats",
-    "description": "Per-turn timing, token usage, average throughput, and estimated cost \u2014 a live icon in the thread header, a per-message action, and a history side panel.",
+    "description": "Deprecated — use Burn (https://github.com/kalindudc/burn). Per-turn timing, token usage, average throughput, and estimated cost \u2014 a live icon in the thread header, a per-message action, and a history side panel.",
     "branding": {
       "icon": "ChartColumn"
     },
